@@ -124,7 +124,7 @@ const FilterControls = React.memo(({
   setFilters: (f: PreferenceFilters) => void
 }) => {
   return (
-    <div className="flex flex-col gap-4 mb-4">
+    <div className="contents">
       <div>
         <label className="block text-sm text-gray-300 mb-1">Max Duration (months)</label>
         <select
@@ -624,100 +624,91 @@ export default function FindInstitution() {
           onSubmit={handleUnifiedSearch}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-900/60 border border-cyan-500/20 rounded-2xl p-6 flex flex-col gap-4"
+          className="bg-gray-900/60 border border-cyan-500/20 rounded-2xl p-6"
         >
-          <div>
-            <label className="block text-sm text-gray-300 mb-1">Course Name</label>
-            <input
-              type="text"
-              value={courseQuery}
-              onChange={e => setCourseQuery(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-black/60 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none"
-              placeholder="e.g. React, Data Science"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-300 mb-1">Location</label>
-            <div className="flex flex-col gap-2">
-              <select
-                value={locationMode}
-                onChange={e => setLocationMode(e.target.value as "manual" | "nearest")}
-                className="px-2 py-2 rounded-lg bg-black/60 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none"
-              >
-                <option value="manual">Prefered Location</option>
-                <option value="nearest">Find Nearest</option>
-              </select>
-              {locationMode === "nearest" ? (
-                <button
-                  type="button"
-                  onClick={requestLocation}
-                  className="px-3 py-2 rounded-lg bg-gray-800/60 border border-gray-600 text-white hover:bg-gray-800 transition flex items-center gap-2"
-                  disabled={locLoading}
-                >
-                  {locLoading ? (
-                    <span className="flex items-center gap-2">
-                      <span>Accessing</span>
-                      <span className="w-4 h-4 border-2 border-gray-400 border-t-cyan-400 rounded-full animate-spin"></span>
-                    </span>
-                  ) : userCoords ? (
-                    "Location Set ✓"
-                  ) : (
-                    "Allow Location"
-                  )}
-                </button>
-              ) : null}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 1. Course Name */}
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Course Name</label>
+              <input
+                type="text"
+                value={courseQuery}
+                onChange={e => setCourseQuery(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg bg-black/60 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none"
+                placeholder="e.g. React, Data Science"
+              />
             </div>
-            {locationMode === "manual" && (
-              <div style={{ position: "relative", marginTop: "0.5rem" }}>
-                <input
-                  type="text"
-                  value={locationQuery}
-                  onChange={e => setLocationQuery(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg bg-black/60 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none"
-                  placeholder="e.g. Mumbai, Delhi"
-                />
-                {locationSuggestions.length > 0 && (
-                  <div
-                    className="absolute left-0 right-0 mt-2 rounded-lg border border-gray-700 bg-gray-900/80 max-h-56 overflow-auto z-10"
-                    style={{ top: "100%" }}
-                  >
-                    {locationSuggestions.map((s, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => selectLocationSuggestion(s)}
-                        className="w-full text-left px-3 py-2 hover:bg-gray-800 text-sm text-gray-200"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                    {locLoading && (
-                      <div className="px-3 py-2 text-xs text-gray-400">Loading…</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          {/* Filters inside the same container, stacked vertically */}
-          <FilterControls filters={prefFilters} setFilters={setPrefFiltersMemo} />
 
-          <div>
-            {/* {locationMode === "nearest" && (
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Radius (km)</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={200}
-                  value={radiusKm}
-                  onChange={e => setRadiusKm(Number(e.target.value) || 1)}
-                  className="w-full px-4 py-3 rounded-lg bg-black/60 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none"
-                  placeholder="e.g. 50"
-                />
+            {/* 2. Location (with mode) */}
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Location</label>
+              <div className="flex flex-col gap-2">
+                <select
+                  value={locationMode}
+                  onChange={e => setLocationMode(e.target.value as "manual" | "nearest")}
+                  className="px-2 py-2 rounded-lg bg-black/60 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none"
+                >
+                  <option value="manual">Prefered Location</option>
+                  <option value="nearest">Find Nearest</option>
+                </select>
+                {locationMode === "nearest" ? (
+                  <button
+                    type="button"
+                    onClick={requestLocation}
+                    className="px-3 py-2 rounded-lg bg-gray-800/60 border border-gray-600 text-white hover:bg-gray-800 transition flex items-center gap-2"
+                    disabled={locLoading}
+                  >
+                    {locLoading ? (
+                      <span className="flex items-center gap-2">
+                        <span>Accessing</span>
+                        <span className="w-4 h-4 border-2 border-gray-400 border-t-cyan-400 rounded-full animate-spin"></span>
+                      </span>
+                    ) : userCoords ? (
+                      "Location Set ✓"
+                    ) : (
+                      "Allow Location"
+                    )}
+                  </button>
+                ) : null}
               </div>
-            )} */}
-            <div className="flex items-end mt-2">
+              {locationMode === "manual" && (
+                <div style={{ position: "relative", marginTop: "0.5rem" }}>
+                  <input
+                    type="text"
+                    value={locationQuery}
+                    onChange={e => setLocationQuery(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg bg-black/60 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none"
+                    placeholder="e.g. Mumbai, Delhi"
+                  />
+                  {locationSuggestions.length > 0 && (
+                    <div
+                      className="absolute left-0 right-0 mt-2 rounded-lg border border-gray-700 bg-gray-900/80 max-h-56 overflow-auto z-10"
+                      style={{ top: "100%" }}
+                    >
+                      {locationSuggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => selectLocationSuggestion(s)}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-800 text-sm text-gray-200"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                      {locLoading && (
+                        <div className="px-3 py-2 text-xs text-gray-400">Loading…</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 3-7. Filters (render as direct grid children) */}
+            <FilterControls filters={prefFilters} setFilters={setPrefFiltersMemo} />
+
+            {/* Submit below all, spanning both columns */}
+            <div className="md:col-span-2">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
