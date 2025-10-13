@@ -624,7 +624,7 @@ export default function FindInstitution() {
           onSubmit={handleUnifiedSearch}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-900/60 border border-cyan-500/20 rounded-2xl p-6 grid grid-cols-1 md:grid-cols-3 gap-4"
+          className="bg-gray-900/60 border border-cyan-500/20 rounded-2xl p-6 grid grid-cols-1 md:grid-cols-2 gap-4"
         >
           <div>
             <label className="block text-sm text-gray-300 mb-1">Course Name</label>
@@ -699,7 +699,7 @@ export default function FindInstitution() {
               </div>
             )}
           </div>
-          <div>
+          <div className="md:col-span-2">
             {/* {locationMode === "nearest" && (
               <div>
                 <label className="block text-sm text-gray-300 mb-1">Radius (km)</label>
