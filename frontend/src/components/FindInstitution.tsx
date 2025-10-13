@@ -124,7 +124,7 @@ const FilterControls = React.memo(({
   setFilters: (f: PreferenceFilters) => void
 }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+    <div className="flex flex-col gap-4 mb-4">
       <div>
         <label className="block text-sm text-gray-300 mb-1">Max Duration (months)</label>
         <select
@@ -624,7 +624,7 @@ export default function FindInstitution() {
           onSubmit={handleUnifiedSearch}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-900/60 border border-cyan-500/20 rounded-2xl p-6 grid grid-cols-1 md:grid-cols-2 gap-4"
+          className="bg-gray-900/60 border border-cyan-500/20 rounded-2xl p-6 flex flex-col gap-4"
         >
           <div>
             <label className="block text-sm text-gray-300 mb-1">Course Name</label>
@@ -638,7 +638,7 @@ export default function FindInstitution() {
           </div>
           <div>
             <label className="block text-sm text-gray-300 mb-1">Location</label>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               <select
                 value={locationMode}
                 onChange={e => setLocationMode(e.target.value as "manual" | "nearest")}
@@ -699,7 +699,10 @@ export default function FindInstitution() {
               </div>
             )}
           </div>
-          <div className="md:col-span-2">
+          {/* Filters inside the same container, stacked vertically */}
+          <FilterControls filters={prefFilters} setFilters={setPrefFiltersMemo} />
+
+          <div>
             {/* {locationMode === "nearest" && (
               <div>
                 <label className="block text-sm text-gray-300 mb-1">Radius (km)</label>
@@ -726,11 +729,6 @@ export default function FindInstitution() {
             </div>
           </div>
         </motion.form>
-
-        {/* Filters */}
-        <div className="mt-6">
-          <FilterControls filters={prefFilters} setFilters={setPrefFiltersMemo} />
-        </div>
 
         {/* Results */}
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
