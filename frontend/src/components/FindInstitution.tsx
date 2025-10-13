@@ -28,7 +28,6 @@ type CourseMatch = {
   description?: string
   keywords?: string[]
   distanceKm?: number
-  mode?: string // <-- Add mode here
 }
 
 type ApiMatch = {
@@ -113,7 +112,6 @@ type PreferenceFilters = {
   priceMin?: number
   priceMax?: number
   sortPrice?: "asc" | "desc" | ""
-  mode?: "Online" | "Offline" | "" // <-- Add mode filter
 }
 
 const FilterControls = React.memo(({
@@ -170,18 +168,6 @@ const FilterControls = React.memo(({
           <option value="">None</option>
           <option value="asc">Low to High</option>
           <option value="desc">High to Low</option>
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm text-gray-300 mb-1">Mode</label>
-        <select
-          value={filters.mode ?? ""}
-          onChange={e => setFilters({ ...filters, mode: e.target.value as any })}
-          className="w-full px-3 py-2 rounded-lg bg-black/60 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none"
-        >
-          <option value="">Any</option>
-          <option value="Online">Online</option>
-          <option value="Offline">Offline</option>
         </select>
       </div>
     </div>
@@ -280,10 +266,7 @@ export default function FindInstitution() {
       out = out.filter(match => match.fee <= (filters.priceMax as number))
     }
 
-    // Filter by mode
-    if (filters.mode ) {
-      out = out.filter(match => filters.mode ? (match.mode || "").toLowerCase() === filters.mode.toLowerCase() : true)
-    }
+    // Mode filter removed
 
     // Sort by price
     if (filters.sortPrice) {
@@ -363,7 +346,6 @@ export default function FindInstitution() {
           description: m.description,
           keywords: m.keywords,
           distanceKm: Number((m as any).distance_km),
-          mode: m.mode,
         }))
         setPrefRawResults(allCourseMatches)
       } catch (err: any) {
@@ -407,7 +389,6 @@ export default function FindInstitution() {
         location: (m.location || "").toString(),
         description: m.description,
         keywords: m.keywords,
-        mode: m.mode,
       }))
       setPrefRawResults(courseMatches)
     } catch (err: any) {
@@ -510,7 +491,6 @@ export default function FindInstitution() {
           description: m.description,
           keywords: m.keywords,
           distanceKm: Number((m as any).distance_km) || Math.round((dist + Number.EPSILON) * 100) / 100,
-          mode: m.mode, // <-- Add this line!
         })
       })
       setGeoAllResults(allCourseMatches)
@@ -574,12 +554,7 @@ export default function FindInstitution() {
                 <span className="text-gray-500">⏱️</span>
                 {match.duration}
               </span>
-              {match.mode && (
-                <span className="flex items-center gap-1">
-                  <span className="text-gray-500">🎓</span>
-                  {match.mode}
-                </span>
-              )}
+              {/* Mode display removed */}
               {typeof match.distanceKm === "number" && !Number.isNaN(match.distanceKm) && (
                 <span className="flex items-center gap-1">
                   <span className="text-gray-500">📏</span>
