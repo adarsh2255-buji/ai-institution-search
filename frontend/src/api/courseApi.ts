@@ -156,28 +156,22 @@ export function buildPrompt(
         ? `Calculate the distance from the user's current location (${coords.latitude}, ${coords.longitude}) to each course. Only include courses within a 50-kilometer radius.`
         : `Location must be an exact, case-insensitive match to the user's provided location.`;
 
-    const taskDescription = isNearest
-        ? `
-Your Task:
-Return a JSON object with two keys: "exactMatches" and "recommendations".
-- "exactMatches": An array of course objects that strictly meet ALL the user's criteria (including the 50km distance rule).
-- "recommendations": An array of other courses that are semantically similar to the user's course query but which STILL meet all other criteria (distance, fee, duration).
-If no matches are found in a category, return an empty array for that key. Respond ONLY with the JSON object.`
-        : `
+    const taskDescription = `
 Your Task:
 Return a JSON object with two keys: "exactMatches" and "recommendations".
 
 1.  **"exactMatches":**
     - This is an array of course objects that strictly meet ALL of the user's criteria.
-    - The 'location' must be a case-insensitive match for "${inputs.location}".
+    - The user's 'Course Name Query' must be found within the 'keywords' array of the course.
+    - The fee, duration, and location (or distance, if applicable) must all match the user's criteria.
 
 2.  **"recommendations":**
-    - This is an array for showing the same course in different locations.
-    - Find all courses where the 'course' name is a case-insensitive match for "${inputs.course}".
-    - From those, filter out any course where the 'location' is a case-insensitive match for "${inputs.location}" (to avoid duplicates from the "exactMatches" list).
-    - Finally, ensure the remaining courses still meet all other user criteria (Minimum Fee, Maximum Fee, Maximum Duration).
+    - This is an array of other suggested courses.
+    - To create this list, find ALL courses where the user's 'Course Name Query' is found within the 'keywords' array.
+    - For this "recommendations" list, IGNORE all other criteria like location, fee, and duration.
+    - To avoid duplicates, do not include any courses in this list that are already present in the "exactMatches" list.
 
-If no matches are found in a category, return an empty array for that key. Respond ONLY with the JSON object.`;
+Always return both "exactMatches" and "recommendations" keys, even if one or both are empty arrays. Respond ONLY with the JSON object.`;
 
     return `You are a world-class course-finding AI assistant. Your task is to analyze the user's criteria and filter the provided JSON data of courses.
 
@@ -188,10 +182,10 @@ JSON Data of All Courses:
 ${JSON.stringify(courses, null, 2)}
 
 Rules for Matching:
-1. Fee must be within the user's minimum and maximum range. If only one is provided, treat it as a lower or upper bound.
+1. The primary way to match a course is by checking if the user's 'Course Name Query' string appears as a substring in any of the strings within the course's 'keywords' array.
 2. ${locationRule}
-3. durationInMonths must be less than or equal to the user's maximum duration.
-4. For the course name, give highest priority to items where the 'course' field closely matches the query. Also consider matches in 'keywords' as secondary.
+3. Fee must be within the user's minimum and maximum range.
+4. durationInMonths must be less than or equal to the user's maximum duration.
 
 ${taskDescription}
 `;
@@ -228,6 +222,8 @@ export async function callGeminiAPI(prompt: string, retries = 3, delay = 1000): 
         }
     }
 }
+
+
 
 export function haversineDistance(coords1: Coordinates, coords2: Coordinates): number {
     const R = 6371; // Earth's radius in km
