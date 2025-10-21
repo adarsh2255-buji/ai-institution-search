@@ -1,13 +1,25 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchCourses, buildPrompt, callGeminiAPI, getCurrentLocation } from '../api/courseApi.ts';
+import { fetchCourses, buildPrompt, callGeminiAPI, getCurrentLocation, fetchLocationSuggestions } from '../api/courseApi';
 import type { Course, SearchResults, Coordinates } from '../types';
-import SearchResult from './SearchResult.tsx';
+import SearchResult from './SearchResult';
+
+// Custom hook for debouncing a value
+function useDebounce(value: string, delay: number) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+}
 
 export default function FindInstitution() {
     // --- STATE MANAGEMENT ---
     const [allCourses, setAllCourses] = useState<Course[]>([]);
-    
-    // NEW state to manage the search type
     const [searchMode, setSearchMode] = useState<'location' | 'nearest'>('location');
 
     // Form input states
@@ -22,6 +34,7 @@ export default function FindInstitution() {
     const [fetchInitialError, setFetchInitialError] = useState<string | null>(null);
     const [uniqueCourseNames, setUniqueCourseNames] = useState<string[]>([]);
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+    const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -29,6 +42,11 @@ export default function FindInstitution() {
     // Results state
     const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
     const [userCoords, setUserCoords] = useState<Coordinates | null>(null);
+
+    // Debounce the location input to avoid excessive API calls
+    const debouncedLocationQuery = useDebounce(location, 300);
+    
+    const justSelectedLocation = useRef(false);
 
     // Effect to fetch initial data from the backend
     useEffect(() => {
@@ -45,6 +63,24 @@ export default function FindInstitution() {
         };
         loadCourses();
     }, []);
+
+    // Effect for location autocomplete
+    useEffect(() => {
+        if (justSelectedLocation.current) {
+            justSelectedLocation.current = false;
+            return;
+        }
+
+        if (searchMode === 'location' && debouncedLocationQuery.length > 2) {
+            const getSuggestions = async () => {
+                const suggestions = await fetchLocationSuggestions(debouncedLocationQuery);
+                setLocationSuggestions(suggestions);
+            };
+            getSuggestions();
+        } else {
+            setLocationSuggestions([]);
+        }
+    }, [debouncedLocationQuery, searchMode]);
 
     // Clear location input when switching to nearest search
     useEffect(() => {
@@ -71,12 +107,25 @@ export default function FindInstitution() {
         setCourseQuery(suggestion);
         setAutocompleteSuggestions([]);
     };
+    
+    // New handler to specifically clear course suggestions
+    const clearCourseSuggestions = () => {
+        setAutocompleteSuggestions([]);
+    };
 
-    // **FIX**: The function no longer needs the 'isNearestSearch' argument.
-    // It can determine the search type from the 'searchMode' state variable.
+    // New handlers for location input
+    const handleLocationInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setLocation(e.target.value);
+    };
+
+    const handleSelectLocationSuggestion = (suggestion: string) => {
+        justSelectedLocation.current = true;
+        setLocation(suggestion);
+        setLocationSuggestions([]);
+    };
+
     const handleSearch = useCallback(async () => {
         const isNearestSearch = searchMode === 'nearest';
-
         setIsLoading(true);
         setError(null);
         setSearchResults(null);
@@ -146,6 +195,10 @@ export default function FindInstitution() {
                 autocompleteSuggestions={autocompleteSuggestions}
                 onCourseInputChange={handleCourseInputChange}
                 onSelectSuggestion={handleSelectSuggestion}
+                onClearCourseSuggestions={clearCourseSuggestions}
+                locationSuggestions={locationSuggestions}
+                onLocationInputChange={handleLocationInputChange}
+                onSelectLocationSuggestion={handleSelectLocationSuggestion}
                 isLoading={isLoading}
                 loadingMessage={loadingMessage}
                 error={error}
@@ -182,6 +235,10 @@ interface SearchFormProps {
     autocompleteSuggestions: string[];
     onCourseInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onSelectSuggestion: (suggestion: string) => void;
+    onClearCourseSuggestions: () => void; // New prop
+    locationSuggestions: string[];
+    onLocationInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onSelectLocationSuggestion: (suggestion: string) => void;
     isLoading: boolean;
     loadingMessage: string;
     error: string | null;
@@ -191,23 +248,40 @@ interface SearchFormProps {
 
 const SearchForm: React.FC<SearchFormProps> = ({ 
     inputs, setters, onSearch, autocompleteSuggestions, onCourseInputChange, 
-    onSelectSuggestion, isLoading, loadingMessage, error, searchMode, setSearchMode 
+    onSelectSuggestion, onClearCourseSuggestions, locationSuggestions, onLocationInputChange, onSelectLocationSuggestion,
+     isLoading, loadingMessage, error, searchMode, setSearchMode 
 }) => {
-    // --- NEW: Refs and state for keyboard navigation ---
-    const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const [highlightedCourseIndex, setHighlightedCourseIndex] = useState(-1);
+    const [highlightedLocationIndex, setHighlightedLocationIndex] = useState(-1);
     const locationInputRef = useRef<HTMLInputElement>(null);
     const durationInputRef = useRef<HTMLInputElement>(null);
+    const courseAutocompleteRef = useRef<HTMLDivElement>(null); // Ref for the course autocomplete container
 
-    // Reset highlighted index when suggestions change
+    // Effect to handle clicks outside of the course autocomplete
     useEffect(() => {
-        setHighlightedIndex(-1);
+        const handleClickOutside = (event: MouseEvent) => {
+            if (courseAutocompleteRef.current && !courseAutocompleteRef.current.contains(event.target as Node)) {
+                onClearCourseSuggestions();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [onClearCourseSuggestions]);
+
+    useEffect(() => {
+        setHighlightedCourseIndex(-1);
     }, [autocompleteSuggestions]);
 
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    useEffect(() => {
+        setHighlightedLocationIndex(-1);
+    }, [locationSuggestions]);
+
+    const handleCourseKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (autocompleteSuggestions.length === 0) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                // If no suggestions, just move to the next input
                 if (searchMode === 'location' && locationInputRef.current) {
                     locationInputRef.current.focus();
                 } else if (durationInputRef.current) {
@@ -217,30 +291,61 @@ const SearchForm: React.FC<SearchFormProps> = ({
             return;
         }
 
-
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            setHighlightedIndex(prev => (prev + 1) % autocompleteSuggestions.length);
+            setHighlightedCourseIndex(prev => (prev + 1) % autocompleteSuggestions.length);
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            setHighlightedIndex(prev => (prev - 1 + autocompleteSuggestions.length) % autocompleteSuggestions.length);
+            setHighlightedCourseIndex(prev => (prev - 1 + autocompleteSuggestions.length) % autocompleteSuggestions.length);
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (highlightedIndex > -1) {
-                // If a suggestion is highlighted, select it
-                onSelectSuggestion(autocompleteSuggestions[highlightedIndex]);
-                setHighlightedIndex(-1);
+            if (highlightedCourseIndex > -1) {
+                onSelectSuggestion(autocompleteSuggestions[highlightedCourseIndex]);
+                setHighlightedCourseIndex(-1);
             } else {
-                // If no suggestion is highlighted, move to the next input
+                onClearCourseSuggestions(); // Clear suggestions on Enter
                 if (searchMode === 'location' && locationInputRef.current) {
                     locationInputRef.current.focus();
                 } else if (durationInputRef.current) {
-                    // This is the next input in 'nearest' mode, or after location
                     durationInputRef.current.focus();
                 }
             }
         }
     };
+
+    const handleLocationKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (locationSuggestions.length === 0) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (durationInputRef.current) {
+                    durationInputRef.current.focus();
+                }
+            }
+            return;
+        }
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setHighlightedLocationIndex(prev => (prev + 1) % locationSuggestions.length);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setHighlightedLocationIndex(prev => (prev - 1 + locationSuggestions.length) % locationSuggestions.length);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedLocationIndex > -1) {
+                onSelectLocationSuggestion(locationSuggestions[highlightedLocationIndex]);
+                setHighlightedLocationIndex(-1);
+                if (durationInputRef.current) {
+                    durationInputRef.current.focus();
+                }
+            } else {
+                if (durationInputRef.current) {
+                    durationInputRef.current.focus();
+                }
+            }
+        }
+    };
+
 
     return (
         <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl mb-8">
@@ -260,7 +365,7 @@ const SearchForm: React.FC<SearchFormProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="relative md:col-span-2">
+                <div className="relative md:col-span-2" ref={courseAutocompleteRef}>
                     <label htmlFor="course-name" className="block text-sm font-medium text-gray-300 mb-1">Course Name</label>
                     <input 
                         type="text" 
@@ -268,18 +373,17 @@ const SearchForm: React.FC<SearchFormProps> = ({
                         placeholder="e.g., Web Development" 
                         value={inputs.courseQuery} 
                         onChange={onCourseInputChange} 
-                        onKeyDown={handleKeyDown} // <-- NEW: Added keydown handler
+                        onKeyDown={handleCourseKeyDown}
                         className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
                         disabled={isLoading} 
                     />
                     {autocompleteSuggestions.length > 0 && (
-                        <div id="autocomplete-list" className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
+                        <div id="autocomplete-list" className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
                             {autocompleteSuggestions.map((suggestion, index) => (
                                 <div 
                                     key={suggestion} 
                                     onClick={() => onSelectSuggestion(suggestion)} 
-                                    // NEW: Apply highlight class based on state
-                                    className={`p-3 cursor-pointer ${index === highlightedIndex ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
+                                    className={`p-3 cursor-pointer ${index === highlightedCourseIndex ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
                                 >
                                     {suggestion}
                                 </div>
@@ -287,27 +391,41 @@ const SearchForm: React.FC<SearchFormProps> = ({
                         </div>
                     )}
                 </div>
-                 
+                
                  {searchMode === 'location' && (
-                    <div className="md:col-span-2">
-                        <label htmlFor="location" className="block text-sm font-medium text-gray-300 mb-1">Location</label>
-                        <input 
-                            ref={locationInputRef} // <-- NEW: Added ref
-                            type="text" 
-                            id="location" 
-                            placeholder="e.g., Trivandrum" 
-                            value={inputs.location} 
-                            onChange={e => setters.setLocation(e.target.value)} 
-                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
-                            disabled={isLoading}
-                        />
-                    </div>
+                     <div className="relative md:col-span-2">
+                         <label htmlFor="location" className="block text-sm font-medium text-gray-300 mb-1">Location</label>
+                         <input 
+                             ref={locationInputRef}
+                             type="text" 
+                             id="location" 
+                             placeholder="e.g., Trivandrum" 
+                             value={inputs.location} 
+                             onChange={onLocationInputChange}
+                             onKeyDown={handleLocationKeyDown}
+                             className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
+                             disabled={isLoading}
+                         />
+                         {locationSuggestions.length > 0 && (
+                             <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
+                                 {locationSuggestions.map((suggestion, index) => (
+                                     <div 
+                                         key={suggestion} 
+                                         onClick={() => onSelectLocationSuggestion(suggestion)} 
+                                         className={`p-3 cursor-pointer ${index === highlightedLocationIndex ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
+                                     >
+                                         {suggestion}
+                                     </div>
+                                 ))}
+                             </div>
+                         )}
+                     </div>
                  )}
 
                 <div>
                     <label htmlFor="duration" className="block text-sm font-medium text-gray-300 mb-1">Max Duration (Months)</label>
                     <input 
-                        ref={durationInputRef} // <-- NEW: Added ref
+                        ref={durationInputRef}
                         type="number" 
                         id="duration" 
                         placeholder="e.g., 6" 

@@ -1,3 +1,4 @@
+import axios from 'axios';
 import type { Course, Coordinates } from '../types';
 import api from './client';
 
@@ -14,6 +15,42 @@ import api from './client';
 //     {"id": 9, "course": "Web Development", "description": "Learn to design and build dynamic, responsive websites using modern front-end and back-end technologies.", "keywords": ["frontend development", "backend development", "full stack development", "html", "css", "javascript", "react"], "fee": 45000, "durationInMonths": 6, "institute": "Future tech", "location": "Kollam", "latitude": 8.8932, "longitude": 76.6141, "mode": "Offline"},
 //     {"id": 10, "course": "Web Development", "description": "Learn to design and build dynamic, responsive websites using modern front-end and back-end technologies.", "keywords": ["frontend development", "backend development", "full stack development", "html", "css", "javascript", "react"], "fee": 45000, "durationInMonths": 6, "institute": "Future tech", "location": "Kollam", "latitude": 8.8932, "longitude": 76.6141, "mode": "Offline"},
 // ];
+
+// ---NEW GEOAPIFY INTEGRATION---
+const geoapifyApiKey = 'c9415ba75dd14ce0ac9d47160d8a12d6';
+/**
+ * Fetches location autocomplete suggestions from Geoapify.
+ * @param query The text the user has typed.
+ * @returns A promise that resolves to an array of formatted location strings.
+ */
+export async function fetchLocationSuggestions(query: string): Promise<string[]> {
+    if (!geoapifyApiKey ) {
+        console.warn("Geoapify API key is not set. Location autocomplete will not work.");
+        return [];
+    }
+    
+    // Bias search towards Kollam, Kerala, India to make local results more relevant
+    const bias = 'proximity:76.6141,8.8932'; // Longitude, Latitude
+
+    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&apiKey=${geoapifyApiKey}&${bias}&limit=5`;
+
+    try {
+        const response = await axios.get(url);
+        // console.log("Geoapify API raw response:", response.data);
+    if (response.data.features && response.data.features.length > 0) {
+      // ✅ Extract only the first word from each formatted address
+      return response.data.features.map((feature: any) => {
+        const formatted = feature.properties.formatted;
+        // Split by comma, take first segment, then take first word
+        return formatted.split(",")[0].trim().split(" ")[0];
+      });
+    }
+        return [];
+    } catch (error) {
+        console.error("Error fetching location suggestions from Geoapify:", error);
+        return []; // Return empty array on error to prevent crashes
+    }
+}
 
 // Define types for the raw API response structure for type safety
 interface ApiCourse {
