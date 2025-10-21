@@ -112,7 +112,7 @@ export default function UserHome() {
           </div>
 
           <div
-            onClick={() => navigate("/institutions")}
+            onClick={() => navigate("/find-institutions")}
             className="p-6 rounded-xl bg-gray-800/60 border border-gray-700 hover:border-cyan-500/50 cursor-pointer transition-all hover:transform hover:scale-105"
           >
             <MapPin className="text-cyan-400 mb-4" size={32} />

@@ -1,0 +1,380 @@
+// import React, { useState, useEffect } from "react";
+// import axios from "axios";
+// import { motion, AnimatePresence } from "framer-motion";
+// import SearchResults, { type ApiResponse } from "./SearchResults";
+// import NearbyResults from "./NearbyResults";
+// import api from "../api/client";
+
+// const GEOAPIFY_API_KEY = "c9415ba75dd14ce0ac9d47160d8a12d6"; // replace with your actual key
+
+// const FindInstitution: React.FC = () => {
+//   const [filters, setFilters] = useState({
+//     course: "",
+//     location: "",
+//     minPrice: "",
+//     maxPrice: "",
+//     duration: "",
+//   });
+
+//   const [loading, setLoading] = useState(false);
+//   const [response, setResponse] = useState<ApiResponse | null>(null);
+//   const [nearbyResults, setNearbyResults] = useState<any[] | null>(null);
+//   const [error, setError] = useState("");
+//   const [status, setStatus] = useState<"idle" | "loading" | "results" | "error">("idle");
+
+//   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
+//   const [suggestions, setSuggestions] = useState<any[]>([]);
+//   const [showSuggestions, setShowSuggestions] = useState(false);
+
+//   const [courseSuggestions, setCourseSuggestions] = useState<string[]>([]);
+//   const [showCourseSuggestions, setShowCourseSuggestions] = useState(false);
+
+
+//   // Handle input change
+//   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+//     const { name, value } = e.target;
+//     setFilters({ ...filters, [name]: value });
+
+//     if (name === "location") {
+//       setShowSuggestions(true);
+//       fetchLocationSuggestions(value);
+//     }
+//       if (name === "course") {
+//     setShowCourseSuggestions(true);
+//     fetchCourseSuggestions(value);
+//   }
+//   };
+
+//   const handleSelectCourse = (course: string) => {
+//     setFilters({ ...filters, course });
+//     setCourseSuggestions([]);
+//     setShowCourseSuggestions(false);
+//   };
+
+
+//   // Fetch Geoapify autocomplete
+//   const fetchLocationSuggestions = async (query: string) => {
+//     if (!query || query.length < 3) {
+//       setSuggestions([]);
+//       return;
+//     }
+//     try {
+//       const res = await axios.get(
+//         `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(
+//           query
+//         )}&limit=5&apiKey=${GEOAPIFY_API_KEY}`
+//       );
+//       setSuggestions(res.data.features || []);
+//     } catch (err) {
+//       console.error("Geoapify API error:", err);
+//       setSuggestions([]);
+//     }
+//   };
+
+//   const handleSelectSuggestion = (place: any) => {
+//     const selected = place.properties.formatted;
+//     setFilters({ ...filters, location: selected });
+//     setSuggestions([]);
+//     setShowSuggestions(false);
+//   };
+
+//   // Input validation
+//   const validateInputs = (): boolean => {
+//     if (!filters.course.trim()) {
+//       setError("⚠️ Please enter a course name.");
+//       return false;
+//     }
+//     if (!useCurrentLocation && !filters.location.trim()) {
+//       setError("⚠️ Please enter a location or enable current location.");
+//       return false;
+//     }
+//     return true;
+//   };
+
+//   // Search function
+//   const handleSearch = async () => {
+//     if (!validateInputs()) return;
+
+//     setLoading(true);
+//     setError("");
+//     setResponse(null);
+//     setNearbyResults(null);
+//     setStatus("loading");
+
+//     if (useCurrentLocation) {
+//       handleFindNearby();
+//       return;
+//     }
+
+//     try {
+//       const res = await api.post<ApiResponse>("/courses/search/", filters);
+//       setResponse(res.data);
+//       setStatus("results");
+//     } catch (err) {
+//       console.error(err);
+//       setError("❌ Something went wrong. Please try again.");
+//       setStatus("error");
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   // Nearby search using geolocation
+//   const handleFindNearby = () => {
+//     if (!navigator.geolocation) {
+//       setError("Geolocation is not supported by your browser.");
+//       setLoading(false);
+//       setStatus("error");
+//       return;
+//     }
+
+//     navigator.geolocation.getCurrentPosition(
+//       async (position) => {
+//         const { latitude, longitude } = position.coords;
+//         try {
+//           const res = await api.post("/courses/search-institutes/", {
+//             latitude,
+//             longitude,
+//             radius_km: 50,
+//             course_name: filters.course || "",
+//             min_fee: filters.minPrice || undefined,
+//             max_fee: filters.maxPrice || undefined,
+//             duration: filters.duration || undefined,
+//           });
+
+//           if (res.data.matches && res.data.matches.length > 0) {
+//             setNearbyResults(res.data.matches);
+//             setStatus("results");
+//           } else {
+//             setNearbyResults([]);
+//             setError("❌ No nearby results found.");
+//             setStatus("error");
+//           }
+//         } catch (err) {
+//           console.error(err);
+//           setError("❌ Unable to fetch nearby institutions.");
+//           setStatus("error");
+//         } finally {
+//           setLoading(false);
+//         }
+//       },
+//       (err) => {
+//         console.error(err);
+//         setError("⚠️ Location access denied. Please enable GPS permission.");
+//         setLoading(false);
+//         setStatus("error");
+//       }
+//     );
+//   };
+
+//   // Debounce location autocomplete
+//   useEffect(() => {
+//     const delay = setTimeout(() => {
+//       if (filters.location && showSuggestions && !useCurrentLocation) {
+//         fetchLocationSuggestions(filters.location);
+//       }
+//     }, 400);
+//     return () => clearTimeout(delay);
+//   }, [filters.location, useCurrentLocation]);
+
+//   // Fetch course suggestions from API
+//   const fetchCourseSuggestions = async (query: string) => {
+//   if (!query || query.length < 2) {
+//     setCourseSuggestions([]);
+//     return;
+//   }
+//   try {
+//     const res = await api.get("/courses/course-names/");
+//     const filtered = res.data.courses.filter((course: string) =>
+//       course.toLowerCase().includes(query.toLowerCase())
+//     );
+//     setCourseSuggestions(filtered);
+//   } catch (err) {
+//     console.error("Course suggestions API error:", err);
+//     setCourseSuggestions([]);
+//   }
+// };
+
+
+//   return (
+//     <motion.div
+//       className="w-full min-h-screen flex flex-col items-center bg-gradient-to-br from-gray-900 via-gray-800 to-black px-4 py-8 text-white"
+//       initial={{ opacity: 0 }}
+//       animate={{ opacity: 1 }}
+//       transition={{ duration: 0.8 }}
+//     >
+//       {/* Header */}
+//       <motion.h2
+//         className="text-3xl font-bold text-cyan-400 mb-6 text-center"
+//         initial={{ y: -20, opacity: 0 }}
+//         animate={{ y: 0, opacity: 1 }}
+//       >
+//         🚀 Find the Best Institution
+//       </motion.h2>
+
+//       {/* Search Box */}
+//       <motion.div
+//         className="max-w-3xl w-full bg-gray-800/60 shadow-2xl rounded-2xl p-8 border border-cyan-600/40 backdrop-blur-md"
+//         initial={{ y: 30, opacity: 0 }}
+//         animate={{ y: 0, opacity: 1 }}
+//       >
+//         {/* Toggle */}
+//         <div className="flex items-center justify-center mb-6 space-x-3">
+//           <span>Use Preferred Location</span>
+//           <label className="relative inline-flex items-center cursor-pointer">
+//             <input
+//               type="checkbox"
+//               className="sr-only peer"
+//               checked={useCurrentLocation}
+//               onChange={() => setUseCurrentLocation(!useCurrentLocation)}
+//             />
+//             <div className="w-11 h-6 bg-gray-500 rounded-full  peer-checked:bg-cyan-500 transition-all"></div>
+//             <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full peer-checked:translate-x-5 transition-all duration-200"></div>
+//           </label>
+//           <span>Find Nearest</span>
+//         </div>
+
+//         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+//           {/* Course */}
+//           <div className="relative">
+//             <label className="block text-sm font-medium text-gray-300 mb-1">
+//               Course Name
+//             </label>
+//             <input
+//               type="text"
+//               name="course"
+//               value={filters.course}
+//               onChange={handleChange}
+//               placeholder="Enter course name"
+//               className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2 focus:ring-2 focus:ring-cyan-500 outline-none"
+//             />
+//             {showCourseSuggestions && courseSuggestions.length > 0 && (
+//               <ul className="absolute z-10 w-full bg-gray-900 border border-gray-700 mt-1 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+//                 {courseSuggestions.map((course, index) => (
+//                   <li
+//                     key={index}
+//                     onClick={() => handleSelectCourse(course)}
+//                     className="p-2 hover:bg-gray-700 cursor-pointer text-sm"
+//                   >
+//                     {course}
+//                   </li>
+//                 ))}
+//               </ul>
+//             )}
+//           </div>
+
+//           {/* Location */}
+//           {!useCurrentLocation && (
+//             <div className="relative">
+//               <label className="block text-sm font-medium text-gray-300 mb-1">
+//                 Location
+//               </label>
+//               <input
+//                 type="text"
+//                 name="location"
+//                 value={filters.location}
+//                 onChange={handleChange}
+//                 placeholder="Enter location"
+//                 autoComplete="off"
+//                 className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2 focus:ring-2 focus:ring-cyan-500 outline-none"
+//               />
+//               {showSuggestions && suggestions.length > 0 && (
+//                 <ul className="absolute z-10 bg-gray-900 border border-gray-700 mt-1 w-full rounded-lg shadow-lg max-h-60 overflow-y-auto">
+//                   {suggestions.map((place, index) => (
+//                     <li
+//                       key={index}
+//                       onClick={() => handleSelectSuggestion(place)}
+//                       className="p-2 hover:bg-gray-700 cursor-pointer text-sm"
+//                     >
+//                       {place.properties.formatted}
+//                     </li>
+//                   ))}
+//                 </ul>
+//               )}
+//             </div>
+//           )}
+
+//           {/* Min/Max Price & Duration */}
+//           {["minPrice", "maxPrice", "duration"].map((field) => (
+//             <div key={field}>
+//               <label className="block text-sm font-medium text-gray-300 mb-1 capitalize">
+//                 {field === "duration" ? "Duration (Months)" : field.replace("Price", " Price")}
+//               </label>
+//               <input
+//                 type="text"
+//                 name={field}
+//                 value={(filters as any)[field]}
+//                 onChange={handleChange}
+//                 placeholder={
+//                   field === "minPrice"
+//                     ? "₹ Minimum"
+//                     : field === "maxPrice"
+//                     ? "₹ Maximum"
+//                     : "e.g. 6"
+//                 }
+//                 className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2 focus:ring-2 focus:ring-cyan-500 outline-none"
+//               />
+//             </div>
+//           ))}
+//         </div>
+
+//         {/* Search Button */}
+//         <div className="mt-8 flex justify-center">
+//           <motion.button
+//             onClick={handleSearch}
+//             disabled={loading}
+//             className="bg-cyan-500 hover:bg-cyan-600 text-white font-medium py-2 px-8 rounded-lg shadow-md transition-all duration-200 disabled:opacity-60"
+//             whileTap={{ scale: 0.95 }}
+//           >
+//             {loading
+//               ? useCurrentLocation
+//                 ? "Locating..."
+//                 : "Searching..."
+//               : useCurrentLocation
+//               ? "Find Nearby"
+//               : "Search"}
+//           </motion.button>
+//         </div>
+//       </motion.div>
+
+//       {/* Animated Status */}
+//       <AnimatePresence mode="wait">
+//         {error && (
+//           <motion.p
+//             key="error"
+//             className="text-red-400 mt-6 text-lg font-medium text-center"
+//             initial={{ opacity: 0 }}
+//             animate={{ opacity: 1 }}
+//             exit={{ opacity: 0 }}
+//           >
+//             {error}
+//           </motion.p>
+//         )}
+//         {status === "loading" && (
+//           <motion.p
+//             key="loading"
+//             className="text-cyan-400 mt-6 text-lg animate-pulse"
+//             initial={{ opacity: 0 }}
+//             animate={{ opacity: 1 }}
+//             exit={{ opacity: 0 }}
+//           >
+//             🔍 Searching for the best matches...
+//           </motion.p>
+//         )}
+//       </AnimatePresence>
+
+//       {/* Results */}
+//       {response && <SearchResults response={response} />}
+// {nearbyResults && (
+//   <NearbyResults results={nearbyResults} status={status === "results" ? "results" : "suggestions"} />
+// )}
+
+//     </motion.div>
+//   );
+// };
+
+// export default FindInstitution;
+
+
+
+you next task is post this input data to the backend using this endpoint" api.post<ApiResponse>("/courses/search/")" and set the response and show to the user. so create another component called searchResults. here we show the searched results to the user . so as in the response if we get the status is result we need to show a 

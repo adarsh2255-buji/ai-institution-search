@@ -13,7 +13,7 @@ export default function GetAllCourses() {
 
   useEffect(() => {
     api
-      .get<Course[]>("http://192.168.29.106:800/courses/list/")
+      .get<Course[]>("/courses/list/")
       .then((res) => {
         setCourses(res.data);
         setLoading(false);

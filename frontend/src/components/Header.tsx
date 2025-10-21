@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Menu, X, User, LogOut, Settings } from "lucide-react";
 import axios from "axios";
+import api from "../api/client";
 
 interface User {
   username: string;
@@ -73,8 +74,8 @@ export default function Header() {
   const handleLogout = async () => {
     const token = localStorage.getItem("token");
     try {
-      await axios.post(
-        "http://192.168.29.106:800/courses/logout/",
+      await api.post(
+        "/courses/logout/",
         {},
         {
           withCredentials: true,

@@ -1,8 +1,8 @@
 import axios from "axios"
 
 const api = axios.create({
-  // baseURL: "https://xpg4jlf7-8000.inc1.devtunnels.ms/",
-  baseURL: "http://192.168.29.106:8000/",
+   baseURL: "https://xpg4jlf7-8000.inc1.devtunnels.ms/",
+  // baseURL: "http://192.168.29.106:8000/",
   headers: { "Content-Type": "application/json" },
 })
 

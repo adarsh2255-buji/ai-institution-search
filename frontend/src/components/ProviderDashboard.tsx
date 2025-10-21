@@ -265,8 +265,8 @@ const handleAccessLocation = () => {
           setInstitutionData((prev) => ({
             ...prev,
             location: locationName,
-            latitude: latitude.toString(),
-            longitude: longitude.toString(),
+            latitude: latitude.toString().slice(0, 6),  
+            longitude: longitude.toString().slice(0, 6),
           }))
         } else {
           alert("Could not fetch location details")
