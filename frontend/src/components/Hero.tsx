@@ -49,7 +49,7 @@ export default function LandingPage() {
       </div>
 
       {/* Hero Content */}
-      <div className="relative z-10 text-center px-6 max-w-4xl">
+      <div className="relative z-10 text-center px-10 max-w-4xl">
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400">
           Find the Perfect Course with AI
         </h1>

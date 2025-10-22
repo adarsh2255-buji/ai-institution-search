@@ -56,7 +56,7 @@ export default function GetAllCourses() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white py-16 px-6">
-      <div className="max-w-6xl mx-auto text-center mb-12 pt-8">
+      <div className="max-w-6xl mx-auto text-center mb-12">
         <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
           Available Courses
         </h2>
