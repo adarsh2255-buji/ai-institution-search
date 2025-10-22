@@ -410,7 +410,7 @@ const SearchForm: React.FC<SearchFormProps> = ({
                              <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
                                  {locationSuggestions.map((suggestion, index) => (
                                      <div 
-                                         key={suggestion} 
+                                          key={`${suggestion}-${index}`} // ✅ unique key 
                                          onClick={() => onSelectLocationSuggestion(suggestion)} 
                                          className={`p-3 cursor-pointer ${index === highlightedLocationIndex ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
                                      >
