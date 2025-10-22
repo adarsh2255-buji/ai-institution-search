@@ -58,7 +58,7 @@ interface ApiCourse {
     name : string;
     keywords: string[];
     fee: number;
-    duration:string;
+    duration: number;
     mode : 'Online' | 'Offline' | 'Hybrid';
     description: string;
 }
@@ -97,7 +97,7 @@ function transformApiResponse(apiData: ApiInstitution[]): Course[] {
                 description: course.description,
                 keywords: course.keywords,
                 fee: course.fee,
-                durationInMonths: parseDuration(course.duration),
+                durationInMonths: course.duration,
                 institute: institution.name,
                 location: institution.location,
                 latitude: institution.latitude,

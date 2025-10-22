@@ -1,86 +1,113 @@
-import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
-type Match = {
-  institute: string;
-  course: string;
-  fee: number;
-  duration: string;
-  location: string;
-  description: string;
-  mode: string;
+import type { Course, Coordinates, SearchResults } from '../types.ts';
+import { haversineDistance } from '../api/courseApi.ts';
+
+// --- NEW HELPER FUNCTION ---
+/**
+ * Formats a duration in months into a human-readable string.
+ * e.g., 6 -> "6 Months", 12 -> "1 Year", 18 -> "1 Year and 6 Months"
+ */
+const formatDuration = (months: number): string => {
+    if (months < 12) {
+        return `${months} ${months === 1 ? 'Month' : 'Months'}`;
+    }
+
+    const years = Math.floor(months / 12);
+    const remainingMonths = months % 12;
+
+    const yearStr = `${years} ${years === 1 ? 'Year' : 'Years'}`;
+    const monthStr = remainingMonths > 0 ? `${remainingMonths} ${remainingMonths === 1 ? 'Month' : 'Months'}` : '';
+
+    return remainingMonths > 0 ? `${yearStr} and ${monthStr}` : yearStr;
 };
 
-export type ApiResponse =
-  | {
-      status: "results";
-      message: string;
-      matches: Match[];
-    }
-  | {
-      status: "suggestions";
-      message: string;
-      matches: Match[];
-    }
-    ;
 
-interface SearchResultsProps {
-  response: ApiResponse;
+// --- COMPONENT PROPS ---
+interface SearchResultProps {
+    results: SearchResults | null;
+    userCoords: Coordinates | null;
 }
 
-const SearchResults: React.FC<SearchResultsProps> = ({ response }) => {
-  return (
-    <motion.div
-      className="max-w-4xl w-full mt-10 bg-white/10 backdrop-blur-md border border-white/20 shadow-lg rounded-2xl p-6"
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-    >
-      {response.status === "suggestions" && (
-        <motion.p
-          className="text-yellow-400 font-medium mb-4 text-center "
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          {response.message}
-        </motion.p>
-      )}
-            {/* <h1 className="text-center mb-5 text-xl text-yellow-400 font-bold">{response.message}</h1> */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        <AnimatePresence>
-          {response.matches.map((item, index) => (
-            <motion.div
-              key={index}
-              layout
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ duration: 0.4, delay: index * 0.05 }}
-              className="group border border-white/10 rounded-xl p-5 hover:border-indigo-500/50 hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300"
-            >
-              
-              <h3 className="text-lg font-semibold text-indigo-400 mb-1 group-hover:text-indigo-300 transition-colors">
-                {item.course}
-              </h3>
-              <p className="text-sm text-gray-300 mb-2">
-                <span className="font-medium text-white">{item.institute}</span>{" "}
-                — {item.location}
-              </p>
-              <p className="text-gray-400 text-sm mb-3">
-                {item.description || "No description available"}
-              </p>
-              <div className="flex justify-between text-sm text-gray-400">
-                <span>💰 ₹{item.fee}</span>
-                <span>⏳ {item.duration}</span>
-                <span>🎓 {item.mode}</span>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-    </motion.div>
-  );
+export default function SearchResult({ results, userCoords }: SearchResultProps) {
+    if (!results) {
+        return null; // Don't render anything if there are no results
+    }
+
+    if (results.exactMatches.length === 0 && results.recommendations.length === 0) {
+        return (
+            <div className="text-center p-8 mt-8 bg-gray-800 rounded-lg">
+                <ErrorMessage message="No courses found matching your criteria. Try broadening your search." />
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8 mt-12">
+            {results.exactMatches.length > 0 && (
+                <ResultSection 
+                    title="Exact Matches" 
+                    courses={results.exactMatches} 
+                    userCoords={userCoords} 
+                />
+            )}
+            {results.recommendations.length > 0 && (
+                <ResultSection 
+                    title="Recommendations" 
+                    courses={results.recommendations} 
+                    userCoords={userCoords} 
+                />
+            )}
+        </div>
+    );
+}
+
+// --- Child Components for this page ---
+
+const ErrorMessage = ({ message }: { message: string }) => (
+    <div className="bg-red-900 border border-red-700 text-red-200 p-4 rounded-lg text-center">{message}</div>
+);
+
+const ResultSection = ({ title, courses, userCoords }: { title: string; courses: Course[]; userCoords: Coordinates | null }) => (
+    <div>
+        <h2 className="text-2xl font-bold text-blue-300 mb-4 pb-2 border-b border-gray-700">{title}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {courses.map(course => (
+                <CourseCard key={`${course.id}-${course.institute}`} course={course} userCoords={userCoords} />
+            ))}
+        </div>
+    </div>
+);
+
+const CourseCard = ({ course, userCoords }: { course: Course; userCoords: Coordinates | null }) => {
+    const distance = userCoords ? haversineDistance(userCoords, { latitude: course.latitude, longitude: course.longitude }).toFixed(1) : null;
+    const modeBgColor = course.mode === 'Online' ? 'bg-green-800' : course.mode === 'Offline' ? 'bg-purple-800' : 'bg-yellow-800';
+
+    return (
+        <div className="bg-gray-800 rounded-lg p-5 border border-gray-700 hover:border-blue-500 transition duration-300 flex flex-col h-full">
+            <h3 className="text-xl font-bold text-white">{course.course}</h3>
+            <p className="text-blue-400 font-semibold">{course.institute}</p>
+            <p className="text-gray-400 mt-2 text-sm flex-grow">{course.description}</p>
+            
+            <div className="mt-4 text-sm space-y-2 text-gray-300">
+                <div className="flex items-center">
+                    <span className="font-bold w-24 shrink-0 text-gray-400">Location:</span> 
+                    <span>{course.location}{distance && ` (${distance} km away)`}</span>
+                </div>
+                <div className="flex items-center">
+                    <span className="font-bold w-24 shrink-0 text-gray-400">Fee:</span> 
+                    <span>₹{course.fee.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex items-center">
+                    <span className="font-bold w-24 shrink-0 text-gray-400">Duration:</span> 
+                    {/* --- THIS IS THE UPDATED LOGIC --- */}
+                    <span>{formatDuration(course.durationInMonths)}</span>
+                </div>
+                <div className="flex items-center">
+                    <span className="font-bold w-24 shrink-0 text-gray-400">Mode:</span> 
+                    <span className={`px-2 py-1 ${modeBgColor} text-white text-xs rounded-full`}>{course.mode}</span>
+                </div>
+            </div>
+        </div>
+    );
 };
 
-export default SearchResults;

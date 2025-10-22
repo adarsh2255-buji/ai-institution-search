@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchCourses, buildPrompt, callGeminiAPI, getCurrentLocation, fetchLocationSuggestions } from '../api/courseApi';
-import type { Course, SearchResults, Coordinates } from '../types';
-import SearchResult from './SearchResult';
+import { fetchCourses, buildPrompt, callGeminiAPI, getCurrentLocation, fetchLocationSuggestions } from '../api/courseApi.ts';
+import type { Course, SearchResults, Coordinates } from '../types.ts';
+import SearchResult from './SearchResult.tsx';
 
 // Custom hook for debouncing a value
 function useDebounce(value: string, delay: number) {
@@ -123,6 +123,11 @@ export default function FindInstitution() {
         setLocation(suggestion);
         setLocationSuggestions([]);
     };
+    
+    // New handler to specifically clear location suggestions
+    const clearLocationSuggestions = () => {
+        setLocationSuggestions([]);
+    };
 
     const handleSearch = useCallback(async () => {
         const isNearestSearch = searchMode === 'nearest';
@@ -199,6 +204,7 @@ export default function FindInstitution() {
                 locationSuggestions={locationSuggestions}
                 onLocationInputChange={handleLocationInputChange}
                 onSelectLocationSuggestion={handleSelectLocationSuggestion}
+                onClearLocationSuggestions={clearLocationSuggestions} // Pass new handler
                 isLoading={isLoading}
                 loadingMessage={loadingMessage}
                 error={error}
@@ -234,11 +240,12 @@ interface SearchFormProps {
     onSearch: () => void;
     autocompleteSuggestions: string[];
     onCourseInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onSelectSuggestion: (suggestion: string) => void;
-    onClearCourseSuggestions: () => void; // New prop
+    onSelectSuggestion: (suggestion: string) => void; // <-- This line was missing
+    onClearCourseSuggestions: () => void;
     locationSuggestions: string[];
     onLocationInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onSelectLocationSuggestion: (suggestion: string) => void;
+    onClearLocationSuggestions: () => void; // New prop
     isLoading: boolean;
     loadingMessage: string;
     error: string | null;
@@ -249,13 +256,15 @@ interface SearchFormProps {
 const SearchForm: React.FC<SearchFormProps> = ({ 
     inputs, setters, onSearch, autocompleteSuggestions, onCourseInputChange, 
     onSelectSuggestion, onClearCourseSuggestions, locationSuggestions, onLocationInputChange, onSelectLocationSuggestion,
+    onClearLocationSuggestions, // Destructure new prop
      isLoading, loadingMessage, error, searchMode, setSearchMode 
 }) => {
     const [highlightedCourseIndex, setHighlightedCourseIndex] = useState(-1);
     const [highlightedLocationIndex, setHighlightedLocationIndex] = useState(-1);
     const locationInputRef = useRef<HTMLInputElement>(null);
     const durationInputRef = useRef<HTMLInputElement>(null);
-    const courseAutocompleteRef = useRef<HTMLDivElement>(null); // Ref for the course autocomplete container
+    const courseAutocompleteRef = useRef<HTMLDivElement>(null);
+    const locationAutocompleteRef = useRef<HTMLDivElement>(null); // New ref for location
 
     // Effect to handle clicks outside of the course autocomplete
     useEffect(() => {
@@ -269,6 +278,19 @@ const SearchForm: React.FC<SearchFormProps> = ({
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [onClearCourseSuggestions]);
+    
+    // New Effect to handle clicks outside of the location autocomplete
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (locationAutocompleteRef.current && !locationAutocompleteRef.current.contains(event.target as Node)) {
+                onClearLocationSuggestions();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [onClearLocationSuggestions]);
 
     useEffect(() => {
         setHighlightedCourseIndex(-1);
@@ -339,9 +361,11 @@ const SearchForm: React.FC<SearchFormProps> = ({
                     durationInputRef.current.focus();
                 }
             } else {
+                onClearLocationSuggestions(); // Clear suggestions on Enter
                 if (durationInputRef.current) {
                     durationInputRef.current.focus();
                 }
+// Redux
             }
         }
     };
@@ -393,7 +417,7 @@ const SearchForm: React.FC<SearchFormProps> = ({
                 </div>
                 
                  {searchMode === 'location' && (
-                     <div className="relative md:col-span-2">
+                     <div className="relative md:col-span-2" ref={locationAutocompleteRef}>
                          <label htmlFor="location" className="block text-sm font-medium text-gray-300 mb-1">Location</label>
                          <input 
                              ref={locationInputRef}
@@ -410,9 +434,9 @@ const SearchForm: React.FC<SearchFormProps> = ({
                              <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
                                  {locationSuggestions.map((suggestion, index) => (
                                      <div 
-                                          key={`${suggestion}-${index}`} // ✅ unique key 
-                                         onClick={() => onSelectLocationSuggestion(suggestion)} 
-                                         className={`p-3 cursor-pointer ${index === highlightedLocationIndex ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
+                                        key={`${suggestion}-${index}`} 
+                                        onClick={() => onSelectLocationSuggestion(suggestion)} 
+                                        className={`p-3 cursor-pointer ${index === highlightedLocationIndex ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
                                      >
                                          {suggestion}
                                      </div>
@@ -467,4 +491,8 @@ const SearchForm: React.FC<SearchFormProps> = ({
         </div>
     );
 }
+
+
+
+
 
