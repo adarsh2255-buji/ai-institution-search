@@ -77,10 +77,10 @@ interface ApiInstitution {
  * @param durationStr The string to parse.
  * @returns The number of months.
  */
-function parseDuration(durationStr: string): number {
-    const match = durationStr.match(/(\d+)/);
-    return match ? parseInt(match[0], 10) : 0;
-}
+// function parseDuration(durationStr: string): number {
+//     const match = durationStr.match(/(\d+)/);
+//     return match ? parseInt(match[0], 10) : 0;
+// }
 /**
  * Transforms the nested API response into a flat array of Course objects.
  * This is the structure the rest of our application expects.
@@ -139,7 +139,7 @@ export function getCurrentLocation(): Promise<Coordinates> {
 }
 
 export function buildPrompt(
-    inputs: { course: string; location: string; minFee: string; maxFee: string; duration: string; },
+    inputs: { course: string; location: string; minFee: number | ''; maxFee: number | ''; duration: number | ''; },
     courses: Course[],
     isNearest: boolean,
     coords: Coordinates | null

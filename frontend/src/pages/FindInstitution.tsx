@@ -25,9 +25,9 @@ export default function FindInstitution() {
     // Form input states
     const [courseQuery, setCourseQuery] = useState('');
     const [location, setLocation] = useState('');
-    const [duration, setDuration] = useState('');
-    const [minFee, setMinFee] = useState('');
-    const [maxFee, setMaxFee] = useState('');
+    const [duration, setDuration] = useState<number | ''>('');
+    const [minFee, setMinFee] = useState<number | ''>('');
+    const [maxFee, setMaxFee] = useState<number | ''>('');
 
     // UI states
     const [isFetchingInitialData, setIsFetchingInitialData] = useState(true);
@@ -229,13 +229,13 @@ const Header = () => (
 );
 
 interface SearchFormProps {
-    inputs: { courseQuery: string; location: string; duration: string; minFee: string; maxFee: string; };
+    inputs: { courseQuery: string; location: string; duration: number | ''; minFee: number | ''; maxFee: number | ''; };
     setters: {
         setCourseQuery: (val: string) => void;
         setLocation: (val: string) => void;
-        setDuration: (val: string) => void;
-        setMinFee: (val: string) => void;
-        setMaxFee: (val: string) => void;
+        setDuration: (val: number | '') => void;
+        setMinFee: (val: number | '') => void;
+        setMaxFee: (val: number | '') => void;
     };
     onSearch: () => void;
     autocompleteSuggestions: string[];
@@ -402,7 +402,7 @@ const SearchForm: React.FC<SearchFormProps> = ({
                         disabled={isLoading} 
                     />
                     {autocompleteSuggestions.length > 0 && (
-                        <div id="autocomplete-list" className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
+                        <div id="autocomplete-list" className="absolute z-20 w-full mt-1 bg-gray-700 text-white border border-gray-600 rounded-lg shadow-lg">
                             {autocompleteSuggestions.map((suggestion, index) => (
                                 <div 
                                     key={suggestion} 
@@ -446,6 +446,16 @@ const SearchForm: React.FC<SearchFormProps> = ({
                      </div>
                  )}
 
+
+                <div>
+                    <label htmlFor="min-fees" className="block text-sm font-medium text-gray-300 mb-1">Min Fees (₹)</label>
+                    <input type="number" id="min-fees" placeholder="e.g., 30000" value={inputs.minFee} onChange={e => setters.setMinFee(e.target.value ? Number(e.target.value) : '')} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" disabled={isLoading}/>
+                    <label htmlFor="max-fees" className="block text-sm font-medium text-gray-300 mb-1">Max Fees (₹)</label>
+                    <input type="number" id="max-fees" placeholder="e.g., 80000" value={inputs.maxFee} onChange={e => setters.setMaxFee(e.target.value ? Number(e.target.value) : '')} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" disabled={isLoading}/>
+                </div>
+                <div className="md:col-span-2">
+                    
+                </div>
                 <div>
                     <label htmlFor="duration" className="block text-sm font-medium text-gray-300 mb-1">Max Duration (Months)</label>
                     <input 
@@ -454,19 +464,12 @@ const SearchForm: React.FC<SearchFormProps> = ({
                         id="duration" 
                         placeholder="e.g., 6" 
                         value={inputs.duration} 
-                        onChange={e => setters.setDuration(e.target.value)} 
+                        onChange={e => setters.setDuration(e.target.value ? Number(e.target.value) : '')} 
                         className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
                         disabled={isLoading}
                     />
                 </div>
-                <div>
-                    <label htmlFor="min-fees" className="block text-sm font-medium text-gray-300 mb-1">Min Fees (₹)</label>
-                    <input type="number" id="min-fees" placeholder="e.g., 30000" value={inputs.minFee} onChange={e => setters.setMinFee(e.target.value)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" disabled={isLoading}/>
-                </div>
-                <div className="md:col-span-2">
-                    <label htmlFor="max-fees" className="block text-sm font-medium text-gray-300 mb-1">Max Fees (₹)</label>
-                    <input type="number" id="max-fees" placeholder="e.g., 80000" value={inputs.maxFee} onChange={e => setters.setMaxFee(e.target.value)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" disabled={isLoading}/>
-                </div>
+                
             </div>
 
             <div className="mt-6">

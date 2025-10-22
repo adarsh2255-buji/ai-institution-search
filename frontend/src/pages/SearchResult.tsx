@@ -18,6 +18,28 @@ const haversineDistance = (coords1: Coordinates, coords2: Coordinates): number =
     
     return R * c; // in kilometers
 };
+// --- NEW HELPER FUNCTION ---
+/**
+ * Formats a duration in months into a human-readable string.
+ * e.g., 6 -> "6 Months", 12 -> "1 Year", 18 -> "1 Year and 6 Months"
+ */
+const formatDuration = (months: number): string => {
+  if (!months || months <= 0) return "N/A";
+
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+
+  if (years === 0) {
+    return `${months} ${months === 1 ? "mo" : "mos"}`;
+  }
+
+  if (remainingMonths === 0) {
+    return `${years} ${years === 1 ? "yr" : "yrs"}`;
+  }
+
+  return `${years} ${years === 1 ? "yr" : "yrs"} ${remainingMonths} ${remainingMonths === 1 ? "mo" : "mos"}`;
+};
+
 
 // --- The Main Exported Component ---
 interface SearchResultProps {
@@ -60,12 +82,12 @@ interface ResultsSectionProps {
     userCoords: Coordinates | null;
 }
 
-const ResultsSection: React.FC<ResultsSectionProps> = ({ title, courses, userCoords }) => (
+const ResultsSection: React.FC<ResultsSectionProps> = ({ title, courses, userCoords }: ResultsSectionProps) => (
     <div className="mb-12">
         <h2 className="text-3xl font-bold text-white mb-6 border-b-2 border-blue-500 pb-2">{title}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {courses.map(course => (
-                <CourseCard key={course.id} course={course} userCoords={userCoords} />
+                <CourseCard key={`${course.id}-${course.institute}`} course={course} userCoords={userCoords} />
             ))}
         </div>
     </div>
@@ -85,7 +107,7 @@ const CourseCard: React.FC<{ course: Course, userCoords: Coordinates | null }> =
                 <InfoItem icon="📍" label="Location" value={course.location} />
                 {distance !== null && <InfoItem icon="🚗" label="Distance" value={`${distance.toFixed(1)} km away`} />}
                 <InfoItem icon="💰" label="Fee" value={`₹${course.fee.toLocaleString('en-IN')}`} />
-                <InfoItem icon="⏳" label="Duration" value={`${course.durationInMonths} Months`} />
+                <InfoItem icon="⏳" label="Duration" value={formatDuration(course.durationInMonths)} />
                 <InfoItem icon="🖥️" label="Mode" value={course.mode} />
             </div>
         </div>

@@ -8,18 +8,22 @@ import { haversineDistance } from '../api/courseApi.ts';
  * e.g., 6 -> "6 Months", 12 -> "1 Year", 18 -> "1 Year and 6 Months"
  */
 const formatDuration = (months: number): string => {
-    if (months < 12) {
-        return `${months} ${months === 1 ? 'Month' : 'Months'}`;
-    }
+  if (!months || months <= 0) return "N/A";
 
-    const years = Math.floor(months / 12);
-    const remainingMonths = months % 12;
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
 
-    const yearStr = `${years} ${years === 1 ? 'Year' : 'Years'}`;
-    const monthStr = remainingMonths > 0 ? `${remainingMonths} ${remainingMonths === 1 ? 'Month' : 'Months'}` : '';
+  if (years === 0) {
+    return `${months} ${months === 1 ? "mo" : "mos"}`;
+  }
 
-    return remainingMonths > 0 ? `${yearStr} and ${monthStr}` : yearStr;
+  if (remainingMonths === 0) {
+    return `${years} ${years === 1 ? "yr" : "yrs"}`;
+  }
+
+  return `${years} ${years === 1 ? "yr" : "yrs"} ${remainingMonths} ${remainingMonths === 1 ? "mo" : "mos"}`;
 };
+
 
 
 // --- COMPONENT PROPS ---
