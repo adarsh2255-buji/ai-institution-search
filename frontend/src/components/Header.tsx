@@ -67,7 +67,7 @@ export default function Header() {
           <Link to="/" className="flex items-center gap-2 hover:text-cyan-400 transition">
             <Home size={18} /> Home
           </Link>
-          <Link to="/institutions" className="flex items-center gap-2 hover:text-cyan-400 transition">
+          <Link to="/find-institutions" className="flex items-center gap-2 hover:text-cyan-400 transition">
             <GraduationCap size={18} /> Institutions
           </Link>
           <Link to="/career-guide" className="flex items-center gap-2 text-cyan-400 font-semibold">
