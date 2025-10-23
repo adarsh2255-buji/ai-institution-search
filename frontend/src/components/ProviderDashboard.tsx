@@ -226,8 +226,10 @@ export default function ProviderDashboard() {
     if (isNaN(feeValue) || feeValue < 0) {
         setMessage("⚠️ Course fee must be a non-negative number.");
         return;
-    }else if(feeValue < 1000){
+    }
+    if(feeValue < 1000){
         setMessage("⚠️ Course fee seems too low. Please enter a valid amount (at least ₹1000).");
+        return;
     }
 
 
