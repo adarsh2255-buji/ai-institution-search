@@ -130,6 +130,34 @@ export default function FindInstitution() {
     };
 
     const handleSearch = useCallback(async () => {
+         setError(null); // Clear previous errors
+        
+        // --- FORM VALIDATION ---
+        if (!courseQuery.trim()) {
+            setError("Please enter a course name.");
+            return;
+        }
+        if (searchMode === 'location' && !location.trim()) {
+            setError("Please enter a location.");
+            return;
+        }
+        if (minFee === '' || maxFee === '' || duration === '') {
+             setError("Please fill in all fee and duration fields.");
+            return;
+        }
+        if (duration < 1) {
+             setError("Duration must be at least 1 month.");
+            return;
+        }
+        if (minFee < 1000) {
+            setError("Minimum fee must be at least ₹1000.");
+            return;
+        }
+         if (maxFee < minFee) {
+            setError("Maximum fee cannot be less than the minimum fee.");
+            return;
+        }
+        // --- End Validation ---
         const isNearestSearch = searchMode === 'nearest';
         setIsLoading(true);
         setError(null);
@@ -277,7 +305,7 @@ const SearchForm: React.FC<SearchFormProps> = ({
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [onClearCourseSuggestions]);
+    }, [onClearCourseSuggestions, onClearLocationSuggestions]);
     
     // New Effect to handle clicks outside of the location autocomplete
     useEffect(() => {
@@ -365,7 +393,6 @@ const SearchForm: React.FC<SearchFormProps> = ({
                 if (durationInputRef.current) {
                     durationInputRef.current.focus();
                 }
-// Redux
             }
         }
     };
@@ -457,8 +484,9 @@ const SearchForm: React.FC<SearchFormProps> = ({
                             id="min-fees" 
                             placeholder="e.g., 30000" 
                             value={inputs.minFee} 
+                            min="1000"
                             onChange={e => setters.setMinFee(e.target.value === '' ? '' : Number(e.target.value))} 
-                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
+                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" 
                             disabled={isLoading}
                         />
                     </div>
@@ -469,8 +497,9 @@ const SearchForm: React.FC<SearchFormProps> = ({
                             id="max-fees" 
                             placeholder="e.g., 80000" 
                             value={inputs.maxFee} 
+                            min="0"
                             onChange={e => setters.setMaxFee(e.target.value === '' ? '' : Number(e.target.value))} 
-                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
+                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" 
                             disabled={isLoading}
                         />
                     </div>
@@ -485,8 +514,9 @@ const SearchForm: React.FC<SearchFormProps> = ({
                         id="duration" 
                         placeholder="e.g., 6" 
                         value={inputs.duration} 
+                        min="1"
                         onChange={e => setters.setDuration(e.target.value === '' ? '' : Number(e.target.value))} 
-                        className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
+                        className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" 
                         disabled={isLoading}
                     />
                 </div>
