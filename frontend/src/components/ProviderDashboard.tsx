@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
-import { Plus, Building, MapPin, BookOpen, Clock, DollarSign, Tag, Edit, X, Trash2 } from "lucide-react"
-import api from "../api/client"
+import { Plus, Building, MapPin, BookOpen, Clock, Tag, Edit, X, Trash2, DollarSign } from "lucide-react" // Added DollarSign
+import api from "../api/client" // Removed .ts extension, assuming module resolution handles it
 
 export default function ProviderDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -38,12 +38,13 @@ export default function ProviderDashboard() {
     const userData = localStorage.getItem("user")
     if (userData) {
       const parsedUser = JSON.parse(userData)
-      if (parsedUser.role !== "provider") {
+      // Basic role check - adapt as needed for your auth system
+      if (!parsedUser || parsedUser.role !== "provider") {
         navigate("/login")
         return
       }
       setUser(parsedUser)
-      fetchInstitutions(parsedUser)
+      fetchInstitutions(parsedUser) // Pass user data if needed for filtering
     } else {
       navigate("/login")
     }
@@ -53,15 +54,40 @@ export default function ProviderDashboard() {
   const fetchInstitutions = async (parsedUser: any) => {
     setIsLoading(true)
     try {
-      const response = await api.get("/courses/provider-institutes/")
-      setInstitutions(response.data)
-      // Optionally select the first institution by default
-      if (response.data.length > 0) {
-        setSelectedInstitution(response.data[0])
-        fetchCourses(response.data[0].id)
+      // Assuming 'api' is configured to include the auth token
+      const response = await api.get("/courses/provider-institutes/") // Use the correct endpoint
+      setInstitutions(response.data || []) // Ensure it's an array
+
+      // Auto-select logic refined
+      if (response.data && response.data.length > 0) {
+        // If an institution is already selected (e.g., after edit), keep it selected
+        const currentSelectedId = selectedInstitution?.id;
+        const updatedSelection = response.data.find((inst: any) => inst.id === currentSelectedId);
+
+        if (updatedSelection) {
+            setSelectedInstitution(updatedSelection);
+            fetchCourses(updatedSelection.id); // Refresh courses for the updated selection
+        } else if (!selectedInstitution) { // Only auto-select if nothing was previously selected
+            setSelectedInstitution(response.data[0]);
+            fetchCourses(response.data[0].id);
+        } else {
+            // The previously selected institution might have been deleted
+             setSelectedInstitution(null);
+             setCourses([]);
+             setShowCoursesPopup(false);
+        }
+      } else {
+          // No institutions left
+          setSelectedInstitution(null);
+          setCourses([]);
+          setShowCoursesPopup(false);
       }
+
+
     } catch (err) {
       setMessage("Failed to fetch institutions.")
+      console.error("Fetch Institutions Error:", err); // Log error for debugging
+      setInstitutions([]); // Reset on error
     } finally {
       setIsLoading(false)
     }
@@ -69,164 +95,205 @@ export default function ProviderDashboard() {
 
   // Fetch courses for a given institution
   const fetchCourses = async (institutionId: number) => {
-    setIsLoading(true)
+    // Only set loading if not already loading from a parent operation
+    // setIsLoading(true); // Maybe set a specific course loading state?
     try {
       const response = await api.get(`/courses/institutes/${institutionId}/details/`)
-      // The courses are inside response.data.courses
-      setCourses(Array.isArray(response.data.courses) ? response.data.courses : [])
+      // Ensure courses data exists and is an array
+      setCourses(Array.isArray(response.data?.courses) ? response.data.courses : [])
     } catch (err) {
-      setCourses([])
-      setMessage("Failed to fetch courses.")
+      setCourses([]) // Reset courses on error
+      setMessage(`Failed to fetch courses for institution ID ${institutionId}.`)
+      console.error(`Fetch Courses Error (ID: ${institutionId}):`, err); // Log error
     } finally {
-      setIsLoading(false)
+      // setIsLoading(false);
     }
   }
 
   // Handle institution selection
   const handleSelectInstitution = (inst: any) => {
-    setSelectedInstitution(inst)
-    fetchCourses(inst.id)
-    setShowCoursesPopup(true)
-    setMessage("")
+    if (selectedInstitution?.id !== inst.id) { // Fetch courses only if selection changes
+        setSelectedInstitution(inst);
+        fetchCourses(inst.id); // Fetch courses for the newly selected institution
+        setMessage(""); // Clear previous messages
+    }
+    setShowCoursesPopup(true); // Always show the popup on click
   }
 
-  // Handle institution edit
+  // Handle institution edit setup
   const handleEditInstitution = (inst: any) => {
     setEditInstitutionId(inst.id)
     setInstitutionData({
-      institution: inst.name,
-      location: inst.location,
-      latitude: inst.latitude,
-      longitude: inst.longitude,
+      institution: inst.name || "", // Ensure values are strings
+      location: inst.location || "",
+      latitude: String(inst.latitude || ""), // Convert to string
+      longitude: String(inst.longitude || ""), // Convert to string
       id: inst.id,
     })
     setShowInstitutionForm(true)
+    setMessage("") // Clear message when opening form
   }
 
-  // Handle course edit
+  // Handle course edit setup
   const handleEditCourse = (course: any) => {
     setEditCourseId(course.id)
     setCourseData({
-      course: course.name,
+      course: course.name || "", // Ensure values are strings
       keywords: Array.isArray(course.keywords) ? course.keywords.join(", ") : course.keywords || "",
-      duration: course.duration,
-      fees: course.fee,
+      duration: String(course.duration || ""), // Convert to string
+      fees: String(course.fee || ""), // Convert to string (use 'fee' from backend)
       description: course.description || "",
       mode: course.mode || "Offline",
     })
     setShowCourseForm(true)
+    setMessage("") // Clear message when opening form
   }
 
   // Handle institution form submit (add or edit)
   const handleInstitutionSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setMessage("")
-    // latitude and longitude validation
+    setMessage("") // Clear message before submission attempt
+
+    // Basic validation
+    if (!institutionData.institution.trim()) {
+        setMessage("⚠️ Institution name is required.");
+        return;
+    }
     if(!institutionData.latitude || !institutionData.longitude){
-      setMessage("⚠️ Please set your location before submitting.")
+      setMessage("⚠️ Please set your location (Latitude/Longitude required) before submitting.")
       return
     }
-    setIsLoading(true)
+
+    setIsLoading(true) // Set loading *before* API call
 
     try {
-      let response
+      const payload = {
+          name: institutionData.institution,
+          location: institutionData.location,
+          // Ensure latitude and longitude are numbers if required by backend, otherwise keep as strings
+          latitude: parseFloat(institutionData.latitude) || 0,
+          longitude: parseFloat(institutionData.longitude) || 0,
+      };
+
       if (editInstitutionId) {
         // Edit institution
-        response = await api.put(`/courses/institutes/${editInstitutionId}/edit/`, {
-          name: institutionData.institution,
-          location: institutionData.location,
-          latitude: institutionData.latitude,
-          longitude: institutionData.longitude,
-        })
-        setMessage("Institution updated successfully!")
+        await api.put(`/courses/institutes/${editInstitutionId}/edit/`, payload)
+        setMessage("✅ Institution updated successfully!")
       } else {
         // Add institution
-        response = await api.post("/courses/add-institute/", {
-          name: institutionData.institution,
-          location: institutionData.location,
-          latitude: institutionData.latitude,
-          longitude: institutionData.longitude,
-        })
-        setMessage("Institution added successfully!")
+        await api.post("/courses/add-institute/", payload)
+        setMessage("✅ Institution added successfully!")
       }
-      // reset form and states
+      // Reset form and states after successful submission
       setShowInstitutionForm(false)
       setEditInstitutionId(null)
-      setInstitutionData({
-        institution: "",
-        location: "",
-        latitude: "",
-        longitude: "",
-        id: undefined,
+      setInstitutionData({ // Clear form data
+        institution: "", location: "", latitude: "", longitude: "", id: undefined,
       })
-      fetchInstitutions(user)
+      fetchInstitutions(user) // Refetch institutions list to show changes
     } catch (err: any) {
-      setMessage("Failed to save institution.")
+       // Provide more specific error feedback
+      const errorDetail = err.response?.data?.detail || err.response?.data || err.message || 'Unknown error';
+      setMessage(`❌ Failed to save institution: ${errorDetail}`)
+      console.error("Institution Submit Error:", err); // Log detailed error
     } finally {
-      setIsLoading(false)
+      setIsLoading(false) // Ensure loading is turned off regardless of success/failure
     }
   }
 
   // Handle course form submit (add or edit)
   const handleCourseSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setMessage("")
-    try {
-      if (!selectedInstitution) {
-        setMessage("Please select an institution first.")
-        setIsLoading(false)
+    setMessage("") // Clear previous messages
+    
+    // --- Validation Checks ---
+    if (!selectedInstitution) {
+        setMessage("⚠️ Please select an institution first.")
         return
-      }
-      let response
+    }
+    if (!courseData.course.trim() || !courseData.keywords.trim() || !courseData.duration || !courseData.fees || !courseData.description.trim()) {
+        setMessage("⚠️ Please fill in all required course fields (Name, Keywords, Duration, Fees, Description).");
+        return;
+    }
+
+    const durationValue = Number(courseData.duration);
+    const feeValue = Number(courseData.fees);
+
+    if (isNaN(durationValue) || durationValue < 1) {
+        setMessage("⚠️ Course duration must be a positive number (at least 1 month).");
+        return;
+    }
+    if (isNaN(feeValue) || feeValue < 0) {
+        setMessage("⚠️ Course fee must be a non-negative number.");
+        return;
+    }else if(feeValue < 1000){
+        setMessage("⚠️ Course fee seems too low. Please enter a valid amount (at least ₹1000).");
+    }
+
+
+    // --- End Validation ---
+
+    setIsLoading(true); // Set loading state *before* API call
+
+    try {
       const payload = {
-        institute: selectedInstitution.id,
+        institute: selectedInstitution.id, // Ensure this ID is correct
         name: courseData.course,
-        keywords: courseData.keywords.split(",").map(k => k.trim()).filter(Boolean),
-        duration: courseData.duration,
-        fee: courseData.fees,
+        keywords: courseData.keywords
+          .split(",")
+          .map(k => k.trim()) // Trim whitespace
+          .filter(Boolean), // Remove empty strings
+        duration: durationValue, // Use validated number
+        fee: feeValue,           // Use validated number
         description: courseData.description,
-        mode: courseData.mode, // <-- Include mode
+        mode: courseData.mode,
       }
+
       if (editCourseId) {
-        response = await api.put(`/courses/courses/${editCourseId}/edit/`, payload)
-        setMessage("Course updated successfully!")
+        // Edit existing course
+        await api.put(`/courses/courses/${editCourseId}/edit/`, payload)
+        setMessage("✅ Course updated successfully!")
       } else {
-        response = await api.post("/courses/add-course/", payload)
-        setMessage("Course added successfully!")
+        // Add new course
+        await api.post("/courses/add-course/", payload)
+        setMessage("✅ Course added successfully!")
       }
+
+      // Reset form state and close modal on success
       setEditCourseId(null)
-      setCourseData({
-        course: "",
-        keywords: "",
-        duration: "",
-        fees: "",
-        description: "",
-        mode: "Offline",
+      setCourseData({ // Reset form data
+        course: "", keywords: "", duration: "", fees: "", description: "", mode: "Offline",
       })
-      
       setShowCourseForm(false)
-      fetchCourses(selectedInstitution.id)
+      fetchCourses(selectedInstitution.id) // Refetch courses for the current institution
+
     } catch (err: any) {
-      setMessage("Failed to save course.")
+        const errorDetail = err.response?.data?.detail || err.response?.data || err.message || 'Unknown error';
+        setMessage(`❌ Failed to save course: ${errorDetail}`)
+        console.error("Course Submit Error:", err); // Log detailed error
     } finally {
-      setIsLoading(false)
+      setIsLoading(false) // Ensure loading is turned off
     }
   }
 
   // Delete institution and its courses
   const handleDeleteInstitution = async (instId: number) => {
-    if (!window.confirm("Are you sure you want to delete this institution and all its courses?")) return
+    // Replace window.confirm with a proper modal confirmation in a real app
+    if (!confirm("Are you sure you want to delete this institution and ALL its courses? This action cannot be undone.")) return
+
     setIsLoading(true)
     setMessage("")
     try {
       await api.delete(`/courses/institutes/${instId}/delete/`)
-      setMessage("Institution deleted successfully!")
-      setShowCoursesPopup(false)
-      setSelectedInstitution(null)
-      fetchInstitutions(user)
-    } catch (err) {
-      setMessage("Failed to delete institution.")
+      setMessage("✅ Institution deleted successfully!")
+      setShowCoursesPopup(false) // Close popup if open for this institution
+      setSelectedInstitution(null) // Deselect
+      setCourses([]) // Clear courses display
+      fetchInstitutions(user) // Refetch list to remove the deleted one
+    } catch (err: any) {
+      const errorDetail = err.response?.data?.detail || err.message || 'Unknown error';
+      setMessage(`❌ Failed to delete institution: ${errorDetail}`)
+      console.error("Delete Institution Error:", err);
     } finally {
       setIsLoading(false)
     }
@@ -234,251 +301,309 @@ export default function ProviderDashboard() {
 
   // Delete a single course
   const handleDeleteCourse = async (courseId: number) => {
-    if (!window.confirm("Are you sure you want to delete this course?")) return
+    // Replace window.confirm with a proper modal confirmation
+    if (!confirm("Are you sure you want to delete this course?")) return
+
     setIsLoading(true)
     setMessage("")
     try {
       await api.delete(`/courses/courses/${courseId}/delete/`)
-      setMessage("Course deleted successfully!")
-      if (selectedInstitution) fetchCourses(selectedInstitution.id)
-    } catch (err) {
-      setMessage("Failed to delete course.")
+      setMessage("✅ Course deleted successfully!")
+      if (selectedInstitution) {
+          fetchCourses(selectedInstitution.id) // Refresh course list for the current institution
+      }
+    } catch (err: any) {
+      const errorDetail = err.response?.data?.detail || err.message || 'Unknown error';
+      setMessage(`❌ Failed to delete course: ${errorDetail}`)
+      console.error("Delete Course Error:", err);
     } finally {
       setIsLoading(false)
     }
   }
 
-  // 🌍 Automatically get user's location using Geoapify
-const handleAccessLocation = () => {
-  if (!navigator.geolocation) {
-    alert("Geolocation is not supported by your browser")
-    return
+  // Get user's location using Geoapify
+  const handleAccessLocation = () => {
+    setMessage(""); // Clear previous messages
+    if (!navigator.geolocation) {
+      setMessage("⚠️ Geolocation is not supported by your browser")
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+
+        try {
+          const apiKey = "c9415ba75dd14ce0ac9d47160d8a12d6" // 🔑 Use environment variable in production!
+          const response = await fetch(
+            `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${apiKey}`
+          )
+          if (!response.ok) throw new Error(`Geoapify error (${response.status}): ${response.statusText}`);
+          const data = await response.json()
+
+          if (data?.features?.length > 0) {
+            const place = data.features[0].properties
+            // Construct a useful location name, preferring city/town/village
+            const locationName = [place.city, place.town, place.village, place.county, place.state, place.country].filter(Boolean).join(', ');
+
+            setInstitutionData((prev) => ({
+              ...prev,
+              location: place.formatted || locationName || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, // Use formatted or build, fallback to coords
+              latitude: latitude.toFixed(6), // Use sufficient precision
+              longitude: longitude.toFixed(6),
+            }))
+            setMessage("✅ Location fetched successfully!"); // Provide feedback
+          } else {
+              setMessage("⚠️ Could not fetch location details from coordinates.")
+          }
+        } catch (error) {
+          console.error("Error fetching reverse geocode:", error)
+          setMessage("❌ Failed to get location name from coordinates.")
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error)
+         let geoMessage = "Location access failed."
+          switch(error.code) {
+              case error.PERMISSION_DENIED:
+                  geoMessage = "⚠️ Location access denied by user.";
+                  break;
+              case error.POSITION_UNAVAILABLE:
+                  geoMessage = "⚠️ Location information is unavailable.";
+                  break;
+              case error.TIMEOUT:
+                  geoMessage = "⚠️ The request to get user location timed out.";
+                  break;
+              default:
+                  geoMessage = "⚠️ An unknown error occurred while getting location.";
+                  break;
+          }
+          setMessage(geoMessage);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Add options for better accuracy/handling
+    )
   }
 
-   navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      const { latitude, longitude } = position.coords
+  // Simplified Logout (replace with your actual auth logic)
+  const handleLogout = () => {
+      localStorage.removeItem("user");
+      // Potentially call an API endpoint to invalidate token server-side
+      navigate("/login");
+  };
 
-      try {
-        const apiKey = "c9415ba75dd14ce0ac9d47160d8a12d6" // 🔑 Replace with your actual Geoapify key
-        const response = await fetch(
-          `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${apiKey}`
-        )
-        const data = await response.json()
-
-        if (data?.features?.length > 0) {
-          const place = data.features[0].properties
-          const locationName = `${place.city || place.town || place.village || ""}, ${place.state || ""}, ${place.country || ""}`
-
-          setInstitutionData((prev) => ({
-            ...prev,
-            location: locationName,
-            latitude: latitude.toString().slice(0, 6),  
-            longitude: longitude.toString().slice(0, 6),
-          }))
-        } else {
-          alert("Could not fetch location details")
-        }
-      } catch (error) {
-        console.error("Error fetching reverse geocode:", error)
-        alert("Failed to get location name")
-      }
-    },
-    (error) => {
-      console.error("Geolocation error:", error)
-      alert("Location access denied or failed")
-    }
-  )
-}
-
-  
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-gray-200">
       {/* Header */}
-      <div className="border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-gray-900/80 backdrop-blur border-b border-gray-700 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-cyan-400">
+            <h1 className="text-xl font-bold text-cyan-400">
               Provider Dashboard
             </h1>
-            <p className="text-gray-400 text-sm">
+            <p className="text-gray-400 text-xs">
               Welcome, {user?.username || user?.name || "Provider"}!
             </p>
           </div>
-          {/* <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 transition-colors"
+          <button
+            onClick={handleLogout} // Ensure you have a logout handler
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-600/20 border border-red-600/30 text-red-300 hover:bg-red-600/30 transition-colors text-xs"
           >
-            <LogOut size={16} />
+            {/* <LogOut size={14} /> */}
             Logout
-          </button> */}
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        {/* Institutions List */}
-        <div className="mb-8">
+      {/* Main Content Area */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+          {/* Global Message Display Area (outside popups) */}
+           {message && !showInstitutionForm && !showCourseForm && !showCoursesPopup && (
+               <motion.div
+                 initial={{ opacity: 0, y: -10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 className={`mb-4 p-3 rounded-lg border text-sm ${
+                   message.includes("✅")
+                     ? "bg-green-500/10 border-green-500/30 text-green-300"
+                     : message.startsWith("⚠️")
+                     ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-300"
+                     : "bg-red-500/10 border-red-500/30 text-red-300"
+                 }`}
+               >
+                 {message.replace(/^[✅⚠️❌]\s*/, '')} {/* Remove icon prefix for display */}
+               </motion.div>
+             )}
+
+
+        {/* Institutions Section */}
+        <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-cyan-300 flex items-center gap-2">
-              <Building size={20} /> Your Institutions
+            <h2 className="text-lg font-semibold text-cyan-300 flex items-center gap-2">
+              <Building size={18} /> Your Institutions
             </h2>
             <button
               onClick={() => {
-                setShowInstitutionForm(true)
-                setEditInstitutionId(null)
-                setInstitutionData({
-                  institution: "",
-                  location: "",
-                  latitude: "",
-                  longitude: "",
-                  id: undefined,
-                })
+                setShowInstitutionForm(true);
+                setEditInstitutionId(null);
+                setInstitutionData({ institution: "", location: "", latitude: "", longitude: "", id: undefined });
+                setMessage(""); // Clear message when opening form
               }}
-              className="flex items-center gap-2 px-3 py-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-medium transition-colors shadow-sm hover:shadow-md"
+              disabled={isLoading}
             >
-              <Plus size={16} /> Add Institution
+              <Plus size={14} /> Add Institution
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {institutions.map(inst => (
-              <div
-                key={inst.id}
-                className={`rounded-lg border p-4 cursor-pointer transition-all ${
-                  selectedInstitution?.id === inst.id && showCoursesPopup
-                    ? "border-cyan-400 bg-cyan-900/20"
-                    : "border-gray-700 bg-gray-800/60"
-                }`}
-                onClick={() => handleSelectInstitution(inst)}
-              >
-                <div className="flex justify-between items-center">
-                  <div>
-                    <div className="font-semibold text-lg text-cyan-300">{inst.name}</div>
-                    <div className="text-gray-400 text-sm">{inst.location}</div>
-                    <div className="text-gray-500 text-xs">
-                      Lat: {inst.latitude}, Lng: {inst.longitude}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        handleEditInstitution(inst)
-                      }}
-                      className="text-cyan-400 hover:text-cyan-200"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        handleDeleteInstitution(inst.id)
-                      }}
-                      className="text-red-400 hover:text-red-200"
-                      title="Delete Institution"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Popup Courses for selected institution */}
+          {isLoading && institutions.length === 0 ? (
+             <div className="flex items-center justify-center text-cyan-400 my-4 p-4 bg-gray-800/50 rounded-lg">
+                <div className="w-5 h-5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mr-2"></div>
+                Loading Institutions...
+             </div>
+          ) : institutions.length === 0 ? (
+             <p className="text-gray-500 text-center py-4 px-4 bg-gray-800/50 rounded-lg text-sm">No institutions found. Click "Add Institution" to get started.</p>
+          ) : (
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {institutions.map(inst => (
+                  <motion.div
+                    key={inst.id}
+                    layout // Animate layout changes
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className={`rounded-lg border p-4 cursor-pointer transition-all relative group shadow-sm ${
+                      selectedInstitution?.id === inst.id && showCoursesPopup
+                        ? "border-cyan-500 bg-gray-800 ring-1 ring-cyan-500 shadow-cyan-500/10"
+                        : "border-gray-700 bg-gray-800 hover:border-gray-600 hover:bg-gray-700/60"
+                    }`}
+                    onClick={() => handleSelectInstitution(inst)}
+                  >
+                     <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0 pr-10"> {/* Allow shrinking and prevent overlap */}
+                            <h3 className="font-semibold text-md text-cyan-300 group-hover:text-cyan-200 truncate">{inst.name}</h3>
+                            <p className="text-gray-400 text-xs truncate">{inst.location}</p>
+                            <p className="text-gray-500 text-xs mt-1 truncate">
+                                Lat: {inst.latitude}, Lng: {inst.longitude}
+                            </p>
+                        </div>
+                         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                           <button
+                             onClick={e => { e.stopPropagation(); handleEditInstitution(inst); }}
+                             className="text-cyan-400 hover:text-cyan-200 bg-gray-700/50 p-1 rounded hover:bg-gray-600/70"
+                             title="Edit Institution"
+                           > <Edit size={14} /> </button>
+                           <button
+                             onClick={e => { e.stopPropagation(); handleDeleteInstitution(inst.id); }}
+                             className="text-red-400 hover:text-red-200 bg-gray-700/50 p-1 rounded hover:bg-gray-600/70"
+                             title="Delete Institution"
+                           > <Trash2 size={14} /> </button>
+                         </div>
+                     </div>
+                  </motion.div>
+                ))}
+             </div>
+           )}
+        </section>
+
+        {/* --- Modals / Popups --- */}
+
+        {/* Courses Popup */}
         <AnimatePresence>
           {showCoursesPopup && selectedInstitution && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+              onClick={() => { setShowCoursesPopup(false); setMessage(""); }} // Clear message on close
             >
               <motion.div
-                initial={{ y: 40, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 40, opacity: 0 }}
-                className="bg-gray-800/90 rounded-xl border border-gray-700 p-8 w-full max-w-2xl relative"
+                initial={{ y: 20, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 20, opacity: 0, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-3xl relative shadow-2xl shadow-black/30 max-h-[90vh] flex flex-col"
+                onClick={e => e.stopPropagation()}
               >
-                <button
-                  className="absolute top-4 right-4 text-gray-400 hover:text-white"
-                  onClick={() => setShowCoursesPopup(false)}
-                  type="button"
-                >
-                  <X size={22} />
-                </button>
-                <div className="flex items-center gap-3 mb-6">
-                  <BookOpen className="text-cyan-400" size={24} />
-                  <h2 className="text-2xl font-bold text-cyan-400">
-                    Courses for {selectedInstitution.name}
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setEditCourseId(null)
-                      setCourseData({
-                        course: "",
-                        keywords: "",
-                        duration: "",
-                        fees: "",
-                        description: "",
-                        mode: "Offline",
-                      })
-                      setShowCourseForm(true)
-                    }}
-                    className="ml-auto flex items-center gap-2 px-3 py-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-sm"
-                  >
-                    <Plus size={16} /> Add Course
-                  </button>
-                </div>
-                {/* Course List */}
-                <div className="mb-8">
-                  {courses.length === 0 ? (
-                    <div className="text-gray-400">No courses found for this institution.</div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {courses.map(course => (
-                        <div
-                          key={course.id}
-                          className="rounded-lg border border-gray-700 bg-gray-900/60 p-4 flex flex-col gap-2"
-                        >
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <div className="font-semibold text-lg text-cyan-300">{course.name}</div>
-                              <div className="text-gray-400 text-sm">{course.duration}</div>
-                              <div className="text-gray-400 text-sm">₹{course.fee}</div>
-                              <div className="text-gray-500 text-xs">
-                                Keywords: {Array.isArray(course.keywords) ? course.keywords.join(", ") : course.keywords}
-                              </div>
-                              <div
-                                className="text-gray-400 text-sm mt-2 break-words max-w-xs md:max-w-sm lg:max-w-md"
-                                style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
-                                title={course.description}
-                              >
-                                {course.description}
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleEditCourse(course)}
-                                className="text-cyan-400 hover:text-cyan-200"
-                                title="Edit Course"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteCourse(course.id)}
-                                className="text-red-400 hover:text-red-200"
-                                title="Delete Course"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                 {/* Header */}
+                 <div className="flex items-center justify-between p-4 border-b border-gray-700 sticky top-0 bg-gray-800 rounded-t-xl z-10">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <BookOpen className="text-cyan-400 flex-shrink-0" size={20} />
+                      <h2 className="text-lg font-semibold text-cyan-300 truncate">
+                        Courses: <span className="text-white font-medium">{selectedInstitution.name}</span>
+                      </h2>
                     </div>
+                     <div className="flex items-center gap-2">
+                         <button
+                           onClick={() => { setEditCourseId(null); setCourseData({ course: "", keywords: "", duration: "", fees: "", description: "", mode: "Offline" }); setShowCourseForm(true); setMessage(""); }}
+                           className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-medium transition-colors"
+                         > <Plus size={14} /> Add </button>
+                        <button
+                          className="text-gray-500 hover:text-white p-1 rounded-full hover:bg-gray-700 transition-colors"
+                          onClick={() => { setShowCoursesPopup(false); setMessage(""); }}
+                          type="button" aria-label="Close courses popup"
+                        > <X size={18} /> </button>
+                    </div>
+                 </div>
+
+                 {/* Message Display inside Popup */}
+                 {message && ( /* Only show message if popup is active */
+                     <motion.div
+                       initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                       className={`mx-4 mt-4 p-3 rounded-lg border text-xs overflow-hidden ${ /* Smaller text */
+                         message.includes("✅") ? "bg-green-500/10 border-green-500/30 text-green-300"
+                         : message.startsWith("⚠️") ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-300"
+                         : "bg-red-500/10 border-red-500/30 text-red-300"
+                       }`}
+                     > {message.replace(/^[✅⚠️❌]\s*/, '')} </motion.div>
+                   )}
+
+                {/* Course List Area */}
+                <div className="overflow-y-auto flex-grow p-4 space-y-3">
+                  {isLoading && courses.length === 0 ? (
+                     <div className="flex items-center justify-center text-cyan-400 py-6">
+                        <div className="w-5 h-5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mr-2"></div>
+                        Loading Courses...
+                     </div>
+                  ) : courses.length === 0 ? (
+                    <div className="text-gray-500 text-center py-6 text-sm">No courses found for this institution.</div>
+                  ) : (
+                    courses.map(course => (
+                      <motion.div
+                        key={course.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="rounded-lg border border-gray-700 bg-gray-900/40 p-3 group relative transition-colors hover:border-gray-600"
+                      >
+                         <div className="flex justify-between items-start mb-1.5">
+                            <div className="flex-1 min-w-0 pr-12"> {/* Space for buttons */}
+                                <h4 className="font-semibold text-sm text-cyan-300 truncate">{course.name}</h4>
+                                <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-gray-400 text-xs mt-1">
+                                    <span className="flex items-center gap-1"><Clock size={11}/> {course.duration || 'N/A'} Months</span>
+                                    <span className="flex items-center gap-1"><DollarSign size={11}/> ₹{course.fee?.toLocaleString('en-IN') ?? 'N/A'}</span>
+                                    <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap ${
+                                        course.mode === 'Online' ? 'bg-green-800/50 text-green-300'
+                                        : course.mode === 'Offline' ? 'bg-purple-800/50 text-purple-300'
+                                        : 'bg-yellow-800/50 text-yellow-300'}`
+                                    }> {course.mode || 'N/A'} </span>
+                                </div>
+                            </div>
+                             <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleEditCourse(course); setMessage(""); }}
+                                  className="text-cyan-400 hover:text-cyan-200 bg-gray-700/50 p-1 rounded hover:bg-gray-600/70"
+                                  title="Edit Course"
+                                > <Edit size={13} /> </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteCourse(course.id); }}
+                                  className="text-red-400 hover:text-red-200 bg-gray-700/50 p-1 rounded hover:bg-gray-600/70"
+                                  title="Delete Course"
+                                > <Trash2 size={13} /> </button>
+                            </div>
+                         </div>
+                         <p className="text-gray-400 text-xs mb-1.5 line-clamp-2" title={course.description}>
+                           {course.description || 'No description provided.'}
+                         </p>
+                          <p className="text-gray-500 text-[10px] truncate" title={Array.isArray(course.keywords) ? course.keywords.join(", ") : course.keywords}>
+                             Keywords: {Array.isArray(course.keywords) ? course.keywords.join(", ") : course.keywords || 'N/A'}
+                         </p>
+                      </motion.div>
+                    ))
                   )}
                 </div>
               </motion.div>
@@ -486,296 +611,247 @@ const handleAccessLocation = () => {
           )}
         </AnimatePresence>
 
-        {/* Popup Institution Form */}
+        {/* Institution Form Popup */}
         <AnimatePresence>
           {showInstitutionForm && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+               onClick={() => { setShowInstitutionForm(false); setMessage(""); }} // Clear message on close
             >
               <motion.div
-                initial={{ y: 40, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 40, opacity: 0 }}
-                className="bg-gray-800/90 rounded-xl border border-gray-700 p-8 w-full max-w-lg relative"
+                 initial={{ y: 20, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 20, opacity: 0, scale: 0.98 }}
+                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-md relative shadow-2xl shadow-black/30 flex flex-col"
+                onClick={e => e.stopPropagation()}
               >
-                <button
-                  className="absolute top-4 right-4 text-gray-400 hover:text-white"
-                  onClick={() => setShowInstitutionForm(false)}
-                  type="button"
-                >
-                  <X size={22} />
-                </button>
-                <div className="flex items-center gap-3 mb-6">
-                  <Building className="text-cyan-400" size={24} />
-                  <h2 className="text-2xl font-bold text-cyan-400">
-                    {editInstitutionId ? "Edit Institution" : "Add Institution"}
-                  </h2>
-                </div>
-                {message && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`mb-6 p-4 rounded-lg border ${
-                      message.includes("successfully") 
-                        ? "bg-green-500/10 border-green-500/30 text-green-400"
-                        : "bg-red-500/10 border-red-500/30 text-red-400"
-                    }`}
-                  >
-                    {message}
-                  </motion.div>
-                )}
-                <form onSubmit={handleInstitutionSubmit} className="space-y-6">
-                  <div>
-                    <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                      <Building size={16} />
-                      Institution Name
-                    </label>
-                    <input
-                      type="text"
-                      name="institution"
-                      value={institutionData.institution}
-                      onChange={e => setInstitutionData({ ...institutionData, institution: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all"
-                      placeholder="Enter institution name"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                      <MapPin size={16} />
-                      Location
-                    </label>
-                    <input
-                      type="text"
-                      name="location"
-                      value={institutionData.location}
-                      onChange={e => setInstitutionData({ ...institutionData, location: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all"
-                      placeholder="City, State, Country"
-                      required
-                      readOnly
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <button type="button"
-                  onClick={handleAccessLocation}
-                  className="mt-2 px-3 py-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-sm">
-  📍                Use Current Location
-                  </button>
+                 {/* Header */}
+                 <div className="flex items-center justify-between p-4 border-b border-gray-700 sticky top-0 bg-gray-800 rounded-t-xl z-10">
+                    <div className="flex items-center gap-3">
+                      <Building className="text-cyan-400 flex-shrink-0" size={20} />
+                      <h2 className="text-lg font-semibold text-cyan-300">
+                        {editInstitutionId ? "Edit Institution" : "Add Institution"}
+                      </h2>
+                    </div>
+                     <button
+                       className="text-gray-500 hover:text-white p-1 rounded-full hover:bg-gray-700 transition-colors"
+                       onClick={() => { setShowInstitutionForm(false); setMessage(""); }}
+                       type="button" aria-label="Close institution form"
+                     > <X size={18} /> </button>
+                 </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                        <MapPin size={16} />
-                        Latitude
-                      </label>
-                      <input
-                        type="number"
-                        name="latitude"
-                        value={institutionData.latitude}
-                        onChange={e => setInstitutionData({ ...institutionData, latitude: e.target.value })}
-                        step="any"
-                        className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all"
-                        placeholder="e.g. 28.6139"
-                        readOnly
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <div>
-                      <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                        <MapPin size={16} />
-                        Longitude
-                      </label>
-                      <input
-                        type="number"
-                        name="longitude"
-                        value={institutionData.longitude}
-                        onChange={e => setInstitutionData({ ...institutionData, longitude: e.target.value })}
-                        step="any"
-                        className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all"
-                        placeholder="e.g. 77.2090"
-                        readOnly
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </div>
-                  <motion.button
-                    whileHover={!isLoading ? { scale: 1.02 } : {}}
-                    whileTap={!isLoading ? { scale: 0.98 } : {}}
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold tracking-wide shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
-                      <div className="flex items-center justify-center">
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
-                        {editInstitutionId ? "Updating..." : "Adding..."}
+                 {/* Form Area */}
+                 <div className="p-4 overflow-y-auto">
+                     {/* Message Display inside Popup */}
+                     {message && (
+                         <motion.div
+                           initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                           className={`mb-4 p-3 rounded-lg border text-xs overflow-hidden ${
+                             message.includes("✅") ? "bg-green-500/10 border-green-500/30 text-green-300"
+                             : message.startsWith("⚠️") ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-300"
+                             : "bg-red-500/10 border-red-500/30 text-red-300"
+                           }`}
+                         > {message.replace(/^[✅⚠️❌]\s*/, '')} </motion.div>
+                       )}
+
+                    <form onSubmit={handleInstitutionSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-cyan-300 mb-1 font-medium text-xs"> Institution Name </label>
+                        <input
+                          type="text" name="institution" value={institutionData.institution}
+                          onChange={e => setInstitutionData({ ...institutionData, institution: e.target.value })}
+                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm"
+                          placeholder="Enter institution name" required disabled={isLoading}
+                        />
                       </div>
-                    ) : (
-                      editInstitutionId ? "Update Institution" : "Add Institution"
-                    )}
-                  </motion.button>
-                </form>
+                      <div>
+                            <label className="block text-cyan-300 mb-1 font-medium text-xs"> Location </label>
+                            <div className="flex gap-2 items-center">
+                                 <input
+                                   type="text" name="location" value={institutionData.location}
+                                   readOnly // Make it read-only, filled by button
+                                   className="flex-grow px-3 py-2 rounded-md bg-gray-700/50 border border-gray-600 text-gray-300 placeholder-gray-500 outline-none text-sm cursor-default"
+                                   placeholder="(Auto-filled)" required disabled={isLoading}
+                                 />
+                                 <button type="button" onClick={handleAccessLocation}
+                                   className="flex-shrink-0 p-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-xs whitespace-nowrap disabled:opacity-50 transition-colors"
+                                   disabled={isLoading} title="Get current location"
+                                 > <MapPin size={14}/> </button>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                 <label className="block text-cyan-300 mb-1 font-medium text-xs"> Latitude </label>
+                                 <input
+                                   type="number" name="latitude" value={institutionData.latitude}
+                                   step="any" readOnly
+                                   className="w-full px-3 py-2 rounded-md bg-gray-700/50 border border-gray-600 text-gray-300 placeholder-gray-500 outline-none text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none cursor-default"
+                                   placeholder="(Auto-filled)" required disabled={isLoading}
+                                 />
+                            </div>
+                            <div>
+                                 <label className="block text-cyan-300 mb-1 font-medium text-xs"> Longitude </label>
+                                 <input
+                                   type="number" name="longitude" value={institutionData.longitude}
+                                   step="any" readOnly
+                                   className="w-full px-3 py-2 rounded-md bg-gray-700/50 border border-gray-600 text-gray-300 placeholder-gray-500 outline-none text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none cursor-default"
+                                   placeholder="(Auto-filled)" required disabled={isLoading}
+                                 />
+                            </div>
+                       </div>
+                      <motion.button
+                        whileHover={!isLoading ? { scale: 1.02 } : {}} whileTap={!isLoading ? { scale: 0.98 } : {}}
+                        type="submit" disabled={isLoading}
+                        className="w-full mt-4 py-2 rounded-md bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold tracking-wide shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            {editInstitutionId ? "Updating..." : "Adding..."}
+                          </div>
+                        ) : (
+                          editInstitutionId ? "Update Institution" : "Add Institution"
+                        )}
+                      </motion.button>
+                    </form>
+                 </div>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Popup Course Form */}
+        {/* Course Form Popup */}
         <AnimatePresence>
           {showCourseForm && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+              onClick={() => { setShowCourseForm(false); setMessage(""); }} // Clear message on close
             >
               <motion.div
-                initial={{ y: 40, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 40, opacity: 0 }}
-                className="bg-gray-800/90 rounded-xl border border-gray-700 p-8 w-full max-w-lg relative"
+                 initial={{ y: 20, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 20, opacity: 0, scale: 0.98 }}
+                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-lg relative shadow-2xl shadow-black/30 max-h-[90vh] flex flex-col"
+                 onClick={e => e.stopPropagation()}
               >
-                <button
-                  className="absolute top-4 right-4 text-gray-400 hover:text-white"
-                  onClick={() => setShowCourseForm(false)}
-                  type="button"
-                >
-                  <X size={22} />
-                </button>
-                <div className="flex items-center gap-2 mb-2">
-                  <BookOpen size={20} className="text-cyan-400" />
-                  <span className="text-lg font-semibold text-cyan-300">
-                    {editCourseId ? "Edit Course" : "Add New Course"}
-                  </span>
-                </div>
-                <form onSubmit={handleCourseSubmit} className="space-y-6 mt-4">
-                  <div>
-                    <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                      <BookOpen size={16} />
-                      Course Name
-                    </label>
-                    <input
-                      type="text"
-                      name="course"
-                      value={courseData.course}
-                      onChange={e => setCourseData({ ...courseData, course: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all"
-                      placeholder="Enter course name"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                      <Tag size={16} />
-                      Keywords
-                    </label>
-                    <input
-                      type="text"
-                      name="keywords"
-                      value={courseData.keywords}
-                      onChange={e => setCourseData({ ...courseData, keywords: e.target.value })}
-                      placeholder="web development, react, javascript, fullstack"
-                      className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all"
-                      disabled={isLoading}
-                    />
-                    <p className="text-gray-500 text-sm mt-1">Comma separated keywords for better searchability</p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                        <Clock size={16} />
-                        Course Duration
-                      </label>
-                      <input
-                        type="text"
-                        name="duration"
-                        value={courseData.duration}
-                        onChange={e => setCourseData({ ...courseData, duration: e.target.value })}
-                        placeholder="e.g. 6 months, 2 years"
-                        className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all"
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <div>
-                      <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                        <DollarSign size={16} />
-                        Course Fees (₹)
-                      </label>
-                      <input
-                        type="number"
-                        name="fees"
-                        value={courseData.fees}
-                        onChange={e => setCourseData({ ...courseData, fees: e.target.value })}
-                        placeholder="45000"
-                        className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all"
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-cyan-300 mb-2 font-medium">
-                      Course Description
-                    </label>
-                    <textarea
-                      name="description"
-                      value={courseData.description}
-                      onChange={e => setCourseData({ ...courseData, description: e.target.value })}
-                      rows={4}
-                      placeholder="Provide a detailed description of the course..."
-                      className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none transition-all resize-vertical"
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2 text-cyan-300 mb-2 font-medium">
-                      <Tag size={16} />
-                      Mode
-                    </label>
-                    <select
-                      name="mode"
-                      value={courseData.mode}
-                      onChange={e => setCourseData({ ...courseData, mode: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg bg-black/70 border border-gray-600 text-white focus:ring-2 focus:ring-cyan-400 outline-none transition-all"
-                      required
-                      disabled={isLoading}
-                    >
-                      <option value="Offline">Offline</option>
-                      <option value="Online">Online</option>
-                      <option value="Hybrid">Hybrid</option>
-                    </select>
-                  </div>
-                  <motion.button
-                    whileHover={!isLoading ? { scale: 1.02 } : {}}
-                    whileTap={!isLoading ? { scale: 0.98 } : {}}
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold tracking-wide shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
-                      <div className="flex items-center justify-center">
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
-                        {editCourseId ? "Updating..." : "Adding..."}
+                  {/* Header */}
+                  <div className="flex items-center justify-between p-4 border-b border-gray-700 sticky top-0 bg-gray-800 rounded-t-xl z-10">
+                     <div className="flex items-center gap-3 min-w-0">
+                        <BookOpen className="text-cyan-400 flex-shrink-0" size={20} />
+                        <h2 className="text-lg font-semibold text-cyan-300 truncate">
+                          {editCourseId ? "Edit Course" : "Add New Course"}
+                          <span className="text-xs text-gray-400 font-normal ml-1">for {selectedInstitution?.name}</span>
+                        </h2>
                       </div>
-                    ) : (
-                      editCourseId ? "Update Course" : "Add Course"
-                    )}
-                  </motion.button>
-                </form>
+                      <button
+                        className="text-gray-500 hover:text-white p-1 rounded-full hover:bg-gray-700 transition-colors"
+                        onClick={() => { setShowCourseForm(false); setMessage(""); }}
+                        type="button" aria-label="Close course form"
+                      > <X size={18} /> </button>
+                  </div>
+
+                  {/* Form Area */}
+                  <div className="p-4 overflow-y-auto">
+                     {/* Message Display inside Popup */}
+                     {message && (
+                         <motion.div
+                           initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                           className={`mb-4 p-3 rounded-lg border text-xs overflow-hidden ${
+                             message.includes("✅") ? "bg-green-500/10 border-green-500/30 text-green-300"
+                             : message.startsWith("⚠️") ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-300"
+                             : "bg-red-500/10 border-red-500/30 text-red-300"
+                           }`}
+                         > {message.replace(/^[✅⚠️❌]\s*/, '')} </motion.div>
+                       )}
+
+                    <form onSubmit={handleCourseSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-cyan-300 mb-1 font-medium text-xs"> Course Name </label>
+                        <input
+                          type="text" name="course" value={courseData.course}
+                          onChange={e => setCourseData({ ...courseData, course: e.target.value })}
+                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm"
+                          placeholder="Enter course name" required disabled={isLoading}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-cyan-300 mb-1 font-medium text-xs"> Keywords </label>
+                        <input
+                          type="text" name="keywords" value={courseData.keywords} required
+                          onChange={e => setCourseData({ ...courseData, keywords: e.target.value })}
+                          placeholder="web dev, react, js"
+                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm"
+                          disabled={isLoading}
+                        />
+                        <p className="text-gray-500 text-[10px] mt-1">Comma separated keywords</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-cyan-300 mb-1 font-medium text-xs"> Duration (Months) </label>
+                          <input
+                            type="number" name="duration" value={courseData.duration}
+                            onChange={e => setCourseData({ ...courseData, duration: e.target.value })}
+                            placeholder="e.g. 12" min="1"
+                            className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            required disabled={isLoading}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-cyan-300 mb-1 font-medium text-xs"> Course Fees (₹) </label>
+                          <input
+                            type="number" name="fees" value={courseData.fees}
+                            onChange={e => setCourseData({ ...courseData, fees: e.target.value })}
+                            placeholder="45000" min="0"
+                            className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            required disabled={isLoading}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-cyan-300 mb-1 font-medium text-xs"> Course Description </label>
+                        <textarea
+                          name="description" value={courseData.description}
+                          onChange={e => setCourseData({ ...courseData, description: e.target.value })}
+                          rows={3} placeholder="Provide a detailed description..."
+                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all resize-vertical text-sm"
+                          disabled={isLoading} required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-cyan-300 mb-1 font-medium text-xs"> Mode </label>
+                        <select
+                          name="mode" value={courseData.mode}
+                          onChange={e => setCourseData({ ...courseData, mode: e.target.value })}
+                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 focus:ring-1 focus:ring-cyan-400 outline-none transition-all text-sm appearance-none"
+                          required disabled={isLoading}
+                        >
+                          <option value="Offline">Offline</option>
+                          <option value="Online">Online</option>
+                          <option value="Hybrid">Hybrid</option>
+                        </select>
+                      </div>
+                      <motion.button
+                        whileHover={!isLoading ? { scale: 1.02 } : {}} whileTap={!isLoading ? { scale: 0.98 } : {}}
+                        type="submit" disabled={isLoading}
+                        className="w-full mt-4 py-2 rounded-md bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold tracking-wide shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            {editCourseId ? "Updating..." : "Adding..."}
+                          </div>
+                        ) : (
+                          editCourseId ? "Update Course" : "Add Course"
+                        )}
+                      </motion.button>
+                    </form>
+                  </div>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </main>
     </div>
   )
 }
+
