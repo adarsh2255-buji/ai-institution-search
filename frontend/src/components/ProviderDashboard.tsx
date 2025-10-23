@@ -397,7 +397,7 @@ export default function ProviderDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-gray-200">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-gray-900/80 backdrop-blur border-b border-gray-700 shadow-md">
+      {/* <header className="sticky top-0 z-30 bg-gray-900/80 backdrop-blur border-b border-gray-700 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-cyan-400">
@@ -408,14 +408,14 @@ export default function ProviderDashboard() {
             </p>
           </div>
           <button
-            onClick={handleLogout} // Ensure you have a logout handler
+            onClick={handleLogout} 
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-600/20 border border-red-600/30 text-red-300 hover:bg-red-600/30 transition-colors text-xs"
           >
-            {/* <LogOut size={14} /> */}
+          
             Logout
           </button>
         </div>
-      </header>
+      </header> */}
 
       {/* Main Content Area */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
