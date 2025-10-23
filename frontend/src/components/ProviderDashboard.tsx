@@ -120,8 +120,14 @@ export default function ProviderDashboard() {
   // Handle institution form submit (add or edit)
   const handleInstitutionSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
     setMessage("")
+    // latitude and longitude validation
+    if(!institutionData.latitude || !institutionData.longitude){
+      setMessage("⚠️ Please set your location before submitting.")
+      return
+    }
+    setIsLoading(true)
+
     try {
       let response
       if (editInstitutionId) {
@@ -143,6 +149,7 @@ export default function ProviderDashboard() {
         })
         setMessage("Institution added successfully!")
       }
+      // reset form and states
       setShowInstitutionForm(false)
       setEditInstitutionId(null)
       setInstitutionData({
@@ -197,6 +204,7 @@ export default function ProviderDashboard() {
         description: "",
         mode: "Offline",
       })
+      
       setShowCourseForm(false)
       fetchCourses(selectedInstitution.id)
     } catch (err: any) {
