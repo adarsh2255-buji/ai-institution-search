@@ -431,12 +431,12 @@ const SearchForm: React.FC<SearchFormProps> = ({
                              disabled={isLoading}
                          />
                          {locationSuggestions.length > 0 && (
-                             <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
+                             <div className="absolute z-10 w-full mt-1 bg-gray-700 border text-white border-gray-600 rounded-lg shadow-lg">
                                  {locationSuggestions.map((suggestion, index) => (
                                      <div 
-                                        key={`${suggestion}-${index}`} 
-                                        onClick={() => onSelectLocationSuggestion(suggestion)} 
-                                        className={`p-3 cursor-pointer ${index === highlightedLocationIndex ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
+                                         key={`${suggestion}-${index}`} 
+                                         onClick={() => onSelectLocationSuggestion(suggestion)} 
+                                         className={`p-3 cursor-pointer ${index === highlightedLocationIndex ? 'bg-blue-600' : 'hover:bg-gray-600'}`}
                                      >
                                          {suggestion}
                                      </div>
@@ -445,18 +445,39 @@ const SearchForm: React.FC<SearchFormProps> = ({
                          )}
                      </div>
                  )}
-
-
-                <div>
-                    <label htmlFor="min-fees" className="block text-sm font-medium text-gray-300 mb-1">Min Fees (₹)</label>
-                    <input type="number" id="min-fees" placeholder="e.g., 30000" value={inputs.minFee} onChange={e => setters.setMinFee(e.target.value ? Number(e.target.value) : '')} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" disabled={isLoading}/>
-                    <label htmlFor="max-fees" className="block text-sm font-medium text-gray-300 mb-1">Max Fees (₹)</label>
-                    <input type="number" id="max-fees" placeholder="e.g., 80000" value={inputs.maxFee} onChange={e => setters.setMaxFee(e.target.value ? Number(e.target.value) : '')} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" disabled={isLoading}/>
+                
+                
+                
+                {/* Full-width container for fees */}
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label htmlFor="min-fees" className="block text-sm font-medium text-gray-300 mb-1">Min Fees (₹)</label>
+                        <input 
+                            type="number" 
+                            id="min-fees" 
+                            placeholder="e.g., 30000" 
+                            value={inputs.minFee} 
+                            onChange={e => setters.setMinFee(e.target.value === '' ? '' : Number(e.target.value))} 
+                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
+                            disabled={isLoading}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="max-fees" className="block text-sm font-medium text-gray-300 mb-1">Max Fees (₹)</label>
+                        <input 
+                            type="number" 
+                            id="max-fees" 
+                            placeholder="e.g., 80000" 
+                            value={inputs.maxFee} 
+                            onChange={e => setters.setMaxFee(e.target.value === '' ? '' : Number(e.target.value))} 
+                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
+                            disabled={isLoading}
+                        />
+                    </div>
                 </div>
+
+                {/* Full-width container for duration */}
                 <div className="md:col-span-2">
-                    
-                </div>
-                <div>
                     <label htmlFor="duration" className="block text-sm font-medium text-gray-300 mb-1">Max Duration (Months)</label>
                     <input 
                         ref={durationInputRef}
@@ -464,12 +485,12 @@ const SearchForm: React.FC<SearchFormProps> = ({
                         id="duration" 
                         placeholder="e.g., 6" 
                         value={inputs.duration} 
-                        onChange={e => setters.setDuration(e.target.value ? Number(e.target.value) : '')} 
+                        onChange={e => setters.setDuration(e.target.value === '' ? '' : Number(e.target.value))} 
                         className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition" 
                         disabled={isLoading}
                     />
                 </div>
-                
+                 
             </div>
 
             <div className="mt-6">
