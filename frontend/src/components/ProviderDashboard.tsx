@@ -719,15 +719,7 @@ export default function ProviderDashboard() {
                                  />
                             </div>
                        </div>
-                        <div>
-                          <label className="block text-cyan-300 mb-1 font-medium text-xs"> Longitude </label>
-                            <input
-                              type="number" name="longitude" value={institutionData.longitude}
-                              step="any" readOnly
-                              className="w-full px-3 py-2 rounded-md bg-gray-700/50 border border-gray-600 text-gray-300 placeholder-gray-500 outline-none text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none cursor-default"
-                              placeholder="(Auto-filled)" required disabled={isLoading}
-                            />
-                        </div>
+                      
                       <motion.button
                         whileHover={!isLoading ? { scale: 1.02 } : {}} whileTap={!isLoading ? { scale: 0.98 } : {}}
                         type="submit" disabled={isLoading}
