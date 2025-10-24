@@ -7,6 +7,7 @@ import api from "../api/client" // Removed .ts extension, assuming module resolu
 export default function ProviderDashboard() {
   const [user, setUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isCourseLoading, setIsCourseLoading] = useState(false)
   const [message, setMessage] = useState("")
   const [institutions, setInstitutions] = useState<any[]>([])
   const [selectedInstitution, setSelectedInstitution] = useState<any | null>(null)
@@ -66,10 +67,10 @@ export default function ProviderDashboard() {
 
         if (updatedSelection) {
             setSelectedInstitution(updatedSelection);
-            fetchCourses(updatedSelection.id); // Refresh courses for the updated selection
+            // fetchCourses(updatedSelection.id); // Refresh courses for the updated selection
         } else if (!selectedInstitution) { // Only auto-select if nothing was previously selected
-            setSelectedInstitution(response.data[0]);
-            fetchCourses(response.data[0].id);
+            // setSelectedInstitution(response.data[0]);
+            // fetchCourses(response.data[0].id);
         } else {
             // The previously selected institution might have been deleted
              setSelectedInstitution(null);
@@ -96,6 +97,8 @@ export default function ProviderDashboard() {
   // Fetch courses for a given institution
   const fetchCourses = async (institutionId: number) => {
     // Only set loading if not already loading from a parent operation
+    setIsCourseLoading(true);
+    setMessage("")
     // setIsLoading(true); // Maybe set a specific course loading state?
     try {
       const response = await api.get(`/courses/institutes/${institutionId}/details/`)
@@ -107,6 +110,7 @@ export default function ProviderDashboard() {
       console.error(`Fetch Courses Error (ID: ${institutionId}):`, err); // Log error
     } finally {
       // setIsLoading(false);
+      setIsCourseLoading(false);
     }
   }
 
@@ -114,8 +118,11 @@ export default function ProviderDashboard() {
   const handleSelectInstitution = (inst: any) => {
     if (selectedInstitution?.id !== inst.id) { // Fetch courses only if selection changes
         setSelectedInstitution(inst);
-        fetchCourses(inst.id); // Fetch courses for the newly selected institution
+        setCourses([]); // Clear previous courses while loading new ones
         setMessage(""); // Clear previous messages
+        setIsCourseLoading(true);
+        fetchCourses(inst.id); // Fetch courses for the newly selected institution
+        
     }
     setShowCoursesPopup(true); // Always show the popup on click
   }
@@ -200,6 +207,10 @@ export default function ProviderDashboard() {
       setIsLoading(false) // Ensure loading is turned off regardless of success/failure
     }
   }
+   // Helper function to count words
+    const countWords = (str: string): number => {
+      return str.trim().split(/\s+/).filter(Boolean).length;
+    };
 
   // Handle course form submit (add or edit)
   const handleCourseSubmit = async (e: React.FormEvent) => {
@@ -218,9 +229,10 @@ export default function ProviderDashboard() {
 
     const durationValue = Number(courseData.duration);
     const feeValue = Number(courseData.fees);
+    const descriptionWordCount = countWords(courseData.description);
 
-    if (isNaN(durationValue) || durationValue < 1) {
-        setMessage("⚠️ Course duration must be a positive number (at least 1 month).");
+    if (isNaN(durationValue) || durationValue < 1 || durationValue > 99) {
+        setMessage("⚠️  Course duration must be between 1 and 99 months.");
         return;
     }
     if (isNaN(feeValue) || feeValue < 0) {
@@ -229,6 +241,10 @@ export default function ProviderDashboard() {
     }
     if(feeValue < 1000){
         setMessage("⚠️ Course fee seems too low. Please enter a valid amount (at least ₹1000).");
+        return;
+    }
+    if (descriptionWordCount < 10 || descriptionWordCount > 120) {
+        setMessage(`⚠️ Description must be between 10 and 120 words (currently ${descriptionWordCount}).`);
         return;
     }
 
@@ -361,6 +377,8 @@ export default function ProviderDashboard() {
         } catch (error) {
           console.error("Error fetching reverse geocode:", error)
           setMessage("❌ Failed to get location name from coordinates.")
+        } finally {
+          setIsLoading(false)
         }
       },
       (error) => {
@@ -387,11 +405,11 @@ export default function ProviderDashboard() {
   }
 
   // Simplified Logout (replace with your actual auth logic)
-  const handleLogout = () => {
-      localStorage.removeItem("user");
-      // Potentially call an API endpoint to invalidate token server-side
-      navigate("/login");
-  };
+  // const handleLogout = () => {
+  //     localStorage.removeItem("user");
+      
+  //     navigate("/login");
+  // };
 
 
   return (
@@ -452,7 +470,7 @@ export default function ProviderDashboard() {
                 setMessage(""); // Clear message when opening form
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-medium transition-colors shadow-sm hover:shadow-md"
-              disabled={isLoading}
+              disabled={isLoading && institutions.length === 0} // Disable while loading initial data
             >
               <Plus size={14} /> Add Institution
             </button>
@@ -559,7 +577,7 @@ export default function ProviderDashboard() {
 
                 {/* Course List Area */}
                 <div className="overflow-y-auto flex-grow p-4 space-y-3">
-                  {isLoading && courses.length === 0 ? (
+                  {isCourseLoading ? (
                      <div className="flex items-center justify-center text-cyan-400 py-6">
                         <div className="w-5 h-5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mr-2"></div>
                         Loading Courses...
@@ -678,7 +696,7 @@ export default function ProviderDashboard() {
                                  <button type="button" onClick={handleAccessLocation}
                                    className="flex-shrink-0 p-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-xs whitespace-nowrap disabled:opacity-50 transition-colors"
                                    disabled={isLoading} title="Get current location"
-                                 > <MapPin size={14}/> </button>
+                                  >{isLoading ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></div> : <MapPin size={14}/>} </button>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -701,6 +719,15 @@ export default function ProviderDashboard() {
                                  />
                             </div>
                        </div>
+                        <div>
+                          <label className="block text-cyan-300 mb-1 font-medium text-xs"> Longitude </label>
+                            <input
+                              type="number" name="longitude" value={institutionData.longitude}
+                              step="any" readOnly
+                              className="w-full px-3 py-2 rounded-md bg-gray-700/50 border border-gray-600 text-gray-300 placeholder-gray-500 outline-none text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none cursor-default"
+                              placeholder="(Auto-filled)" required disabled={isLoading}
+                            />
+                        </div>
                       <motion.button
                         whileHover={!isLoading ? { scale: 1.02 } : {}} whileTap={!isLoading ? { scale: 0.98 } : {}}
                         type="submit" disabled={isLoading}
@@ -781,7 +808,7 @@ export default function ProviderDashboard() {
                         <input
                           type="text" name="keywords" value={courseData.keywords} required
                           onChange={e => setCourseData({ ...courseData, keywords: e.target.value })}
-                          placeholder="web dev, react, js"
+                          placeholder="course name, web dev, react, js"
                           className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm"
                           disabled={isLoading}
                         />
@@ -814,7 +841,7 @@ export default function ProviderDashboard() {
                         <textarea
                           name="description" value={courseData.description}
                           onChange={e => setCourseData({ ...courseData, description: e.target.value })}
-                          rows={3} placeholder="Provide a detailed description..."
+                          rows={3} placeholder="Provide a detailed description... min word= 10, max word=120"
                           className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all resize-vertical text-sm"
                           disabled={isLoading} required
                         />
