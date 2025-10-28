@@ -64,7 +64,7 @@ const SearchResult: React.FC<SearchResultProps> = ({ results, userCoords }) => {
                         <ResultsSection title="Exact Matches" courses={exactMatches} userCoords={userCoords} />
                     )}
                     {recommendations.length > 0 && (
-                        <ResultsSection title="Recommendations" courses={recommendations} userCoords={userCoords} />
+                        <ResultsSection title="Related courses" courses={recommendations} userCoords={userCoords} />
                     )}
                 </>
             )}
