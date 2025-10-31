@@ -3,7 +3,7 @@ import api from "../api/client";
 
 type Course = {
   id: number | string;
-  course: string;
+  courseName: string;
   description: string;
 };
 
@@ -94,7 +94,7 @@ export default function GetAllCourses() {
                   ></div>
 
                   <h3 className="text-xl font-semibold text-white relative z-10 mb-3">
-                    {course.course}
+                    {course.courseName}
                   </h3>
 
                   {/* Description block */}
