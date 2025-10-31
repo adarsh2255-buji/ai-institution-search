@@ -153,39 +153,54 @@ export function buildPrompt(
     ].filter(Boolean).join('\n    - ');
 
     const locationRule = isNearest && coords
-        ? `Calculate the distance from the user's current location (${coords.latitude}, ${coords.longitude}) to each course. Only include courses within a 50-kilometer radius.`
-        : `Location must be an exact, case-insensitive match to the user's provided location.`;
+        ? `Calculate the distance from the user's current location (${coords.latitude}, ${coords.longitude}) to each course's latitude and longitude.`
+        : `Location must be an exact, case-insensitive match to the user's provided location: "${inputs.location}".`;
 
-    const taskDescription = `
+    const taskDescription = isNearest
+        ? `
 Your Task:
 Return a JSON object with two keys: "exactMatches" and "recommendations".
 
 1.  **"exactMatches":**
-    - This is an array of course objects that strictly meet ALL of the user's criteria.
-    - The user's 'Course Name Query' must be found within the 'keywords' array of the course.
-    - The fee, duration, and location (or distance, if applicable) must all match the user's criteria.
+    - **PRIMARY CRITERION:** Courses in this array MUST be located within a 50-kilometer radius of the user's current location (${coords?.latitude}, ${coords?.longitude}). Calculate the distance accurately. ABSOLUTELY EXCLUDE any course further than 50km.
+    - **SECONDARY CRITERIA:** Courses in this array MUST ALSO meet ALL OTHER provided user criteria (Fee range, Max Duration).
 
 2.  **"recommendations":**
-    - This is an array of other suggested courses.
-    - To create this list, find ALL courses where the user's 'Course Name Query' is found within the 'keywords' array.
-    - For this "recommendations" list, IGNORE all other criteria like location, fee, and duration.
-    - To avoid duplicates, do not include any courses in this list that are already present in the "exactMatches" list.
+    - This array should contain courses where the 'course' name or 'keywords' loosely match the user's query "${inputs.course}".
+    - **IGNORE ALL OTHER CRITERIA** (location/distance, fee, duration) for this list. Just find courses related to the user's query term.
 
-Always return both "exactMatches" and "recommendations" keys, even if one or both are empty arrays. Respond ONLY with the JSON object.`;
+If no matches are found in a category, return an empty array for that key. Respond ONLY with the JSON object.`
+        : `
+Your Task:
+Return a JSON object with two keys: "exactMatches" and "recommendations".
+
+1.  **"exactMatches":**
+    - This array MUST ONLY contain course objects that strictly meet ALL of the user's criteria (Location: "${inputs.location}", Fee range, Max Duration).
+    - Match the location case-insensitively.
+
+2.  **"recommendations":**
+    - This array should contain courses where the 'course' name or 'keywords' loosely match the user's query "${inputs.course}".
+    - **IGNORE ALL OTHER CRITERIA** (location, fee, duration) for this list. Just find courses related to the user's query term.
+    - Exclude courses already present in the "exactMatches" array from this list to avoid duplicates.
+
+
+If no matches are found in a category, return an empty array for that key. Respond ONLY with the JSON object.`;
+    // --- END REFINED Prompt Logic ---
 
     return `You are a world-class course-finding AI assistant. Your task is to analyze the user's criteria and filter the provided JSON data of courses.
 
 User's Criteria:
     - ${criteria || "No specific criteria provided."}
+${isNearest ? `User's Current Location: Latitude ${coords?.latitude}, Longitude ${coords?.longitude}` : ''}
 
-JSON Data of All Courses:
+JSON Data of All Courses (Format: Array of objects, each object has keys like id, course, description, keywords, fee, durationInMonths, institute, location, latitude, longitude, mode):
 ${JSON.stringify(courses, null, 2)}
 
 Rules for Matching:
-1. The primary way to match a course is by checking if the user's 'Course Name Query' string appears as a substring in any of the strings within the course's 'keywords' array.
-2. ${locationRule}
-3. Fee must be within the user's minimum and maximum range.
-4. durationInMonths must be less than or equal to the user's maximum duration.
+1. Fee must be within the user's minimum and maximum range (inclusive). If only one is provided, treat it as a lower or upper bound. If none provided, ignore fee.
+2. ${locationRule} <-- Apply this rule strictly according to the 'Your Task' section below. For "exactMatches" in nearest search, the 50km limit is ABSOLUTE.
+3. durationInMonths must be less than or equal to the user's maximum duration, if provided. Ignore if not provided.
+4. For course name matching, prioritize matches in the 'course' field over matches in the 'keywords' array.
 
 ${taskDescription}
 `;
@@ -225,10 +240,10 @@ export async function callGeminiAPI(prompt: string, retries = 3, delay = 1000): 
 
 
 
-export function haversineDistance(coords1: Coordinates, coords2: Coordinates): number {
-    const R = 6371; // Earth's radius in km
-    const dLat = (coords2.latitude - coords1.latitude) * Math.PI / 180;
-    const dLon = (coords2.longitude - coords1.longitude) * Math.PI / 180;
-    const a = 0.5 - Math.cos(dLat) / 2 + Math.cos(coords1.latitude * Math.PI / 180) * Math.cos(coords2.latitude * Math.PI / 180) * (1 - Math.cos(dLon)) / 2;
-    return R * 2 * Math.asin(Math.sqrt(a));
-}
+// export function haversineDistance(coords1: Coordinates, coords2: Coordinates): number {
+//     const R = 6371; // Earth's radius in km
+//     const dLat = (coords2.latitude - coords1.latitude) * Math.PI / 180;
+//     const dLon = (coords2.longitude - coords1.longitude) * Math.PI / 180;
+//     const a = 0.5 - Math.cos(dLat) / 2 + Math.cos(coords1.latitude * Math.PI / 180) * Math.cos(coords2.latitude * Math.PI / 180) * (1 - Math.cos(dLon)) / 2;
+//     return R * 2 * Math.asin(Math.sqrt(a));
+// }
