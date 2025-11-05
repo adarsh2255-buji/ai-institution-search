@@ -5,8 +5,8 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const [inputs, setInputs] = useState<SearchFilters>({
         courseName: "",
         location: "",
-        minPrice: 0,
-        maxPrice: 10000,
+        minPrice: "",
+        maxPrice: "",
         duration: 8
     });
 
@@ -14,7 +14,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
         const { name, value, type } = e.target;
         setInputs((prev) => ({
             ...prev,
-            [name]: type === "number" ? parseFloat(value) || 0 : value
+            [name]: type === "number" ? (value === "" ? "" : parseFloat(value)) : value
         }));
     };
     const handleSubmit = (e: React.FormEvent) => {

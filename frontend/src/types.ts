@@ -21,9 +21,9 @@ export interface Course {
 export interface SearchFilters {
   courseName: string;
   location: string;
-  minPrice: number ;
-  maxPrice: number;
-  duration: number;
+  minPrice: number | string;
+  maxPrice: number | string;
+  duration: number | string;
 }
 
 // Defines the response structure from our AI
