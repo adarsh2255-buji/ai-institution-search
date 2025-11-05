@@ -1,6 +1,6 @@
-import axios from 'axios';
-import type { Course, Coordinates } from '../types';
-import api from './client';
+
+import type { Course, Coordinates, SearchFilters, AiResponse } from '../types';
+
 
 // In a real application, this would be fetched from an API endpoint.
 // export const mockCourseData: Course[] = [
@@ -16,227 +16,212 @@ import api from './client';
 //     {"id": 10, "course": "Web Development", "description": "Learn to design and build dynamic, responsive websites using modern front-end and back-end technologies.", "keywords": ["frontend development", "backend development", "full stack development", "html", "css", "javascript", "react"], "fee": 45000, "durationInMonths": 6, "institute": "Future tech", "location": "Kollam", "latitude": 8.8932, "longitude": 76.6141, "mode": "Offline"},
 // ];
 
-// ---NEW GEOAPIFY INTEGRATION---
-const geoapifyApiKey = 'c9415ba75dd14ce0ac9d47160d8a12d6';
-/**
- * Fetches location autocomplete suggestions from Geoapify.
- * @param query The text the user has typed.
- * @returns A promise that resolves to an array of formatted location strings.
- */
-export async function fetchLocationSuggestions(query: string): Promise<string[]> {
-    if (!geoapifyApiKey ) {
-        console.warn("Geoapify API key is not set. Location autocomplete will not work.");
-        return [];
-    }
+// // ---NEW GEOAPIFY INTEGRATION---
+// const geoapifyApiKey = 'c9415ba75dd14ce0ac9d47160d8a12d6';
+// /**
+//  * Fetches location autocomplete suggestions from Geoapify.
+//  * @param query The text the user has typed.
+//  * @returns A promise that resolves to an array of formatted location strings.
+//  */
+// export async function fetchLocationSuggestions(query: string): Promise<string[]> {
+//     if (!geoapifyApiKey ) {
+//         console.warn("Geoapify API key is not set. Location autocomplete will not work.");
+//         return [];
+//     }
     
-    // Bias search towards Kollam, Kerala, India to make local results more relevant
-    const bias = 'proximity:76.6141,8.8932'; // Longitude, Latitude
+//     // Bias search towards Kollam, Kerala, India to make local results more relevant
+//     const bias = 'proximity:76.6141,8.8932'; // Longitude, Latitude
 
-    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&apiKey=${geoapifyApiKey}&${bias}&limit=5`;
+//     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&apiKey=${geoapifyApiKey}&${bias}&limit=5`;
 
-    try {
-        const response = await axios.get(url);
-        // console.log("Geoapify API raw response:", response.data);
-    if (response.data.features && response.data.features.length > 0) {
-      // ✅ Extract only the first word from each formatted address
-      return response.data.features.map((feature: any) => {
-        const formatted = feature.properties.formatted;
-        // Split by comma, take first segment, then take first word
-        return formatted.split(",")[0].trim().split(" ")[0];
-      });
-    }
-        return [];
-    } catch (error) {
-        console.error("Error fetching location suggestions from Geoapify:", error);
-        return []; // Return empty array on error to prevent crashes
-    }
-}
-
-// Define types for the raw API response structure for type safety
-interface ApiCourse {
-    id: number;
-    name : string;
-    keywords: string[];
-    fee: number;
-    duration: number;
-    mode : 'Online' | 'Offline' | 'Hybrid';
-    description: string;
-}
-
-interface ApiInstitution {
-    id: number;
-    name: string;
-    location: string;
-    latitude: number;
-    longitude: number;
-    courses: ApiCourse[];
-}
-
-/**
- * Parses a duration string (e.g., "6 Months") into a number.
- * @param durationStr The string to parse.
- * @returns The number of months.
- */
-// function parseDuration(durationStr: string): number {
-//     const match = durationStr.match(/(\d+)/);
-//     return match ? parseInt(match[0], 10) : 0;
+//     try {
+//         const response = await axios.get(url);
+//         // console.log("Geoapify API raw response:", response.data);
+//     if (response.data.features && response.data.features.length > 0) {
+//       // ✅ Extract only the first word from each formatted address
+//       return response.data.features.map((feature: any) => {
+//         const formatted = feature.properties.formatted;
+//         // Split by comma, take first segment, then take first word
+//         return formatted.split(",")[0].trim().split(" ")[0];
+//       });
+//     }
+//         return [];
+//     } catch (error) {
+//         console.error("Error fetching location suggestions from Geoapify:", error);
+//         return []; // Return empty array on error to prevent crashes
+//     }
 // }
-/**
- * Transforms the nested API response into a flat array of Course objects.
- * This is the structure the rest of our application expects.
- * @param apiData The raw data from the /courses/institution-courses/ endpoint.
- * @returns A flattened array of Course objects.
- */
-function transformApiResponse(apiData: ApiInstitution[]): Course[] {
-    const flattenedCourses: Course[] = [];
-    apiData.forEach(institution => {
-        institution.courses.forEach(course => {
-            flattenedCourses.push({
-                id: course.id,
-                course: course.name,
-                description: course.description,
-                keywords: course.keywords,
-                fee: course.fee,
-                durationInMonths: course.duration,
-                institute: institution.name,
-                location: institution.location,
-                latitude: institution.latitude,
-                longitude: institution.longitude,
-                mode: course.mode,
-            });
-        });
-    });
-    console.log(flattenedCourses)
-    return flattenedCourses;
-}
-/**
- * Fetches course data from the backend API and transforms it.
- * @returns A promise that resolves to an array of Course objects.
- */
-export async function fetchCourses(): Promise<Course[]> {
-    try {
-        // **CHANGE**: Replaced fetch with axios.get
-        // In a real project, the base URL would come from an environment variable.
-        const response = await api.get<{ data: ApiInstitution[] }>('/courses/institutions-courses/');
-        // axios automatically checks for non-2xx responses and throws an error.
-        // The response data is directly available on the `data` property.
-        return transformApiResponse(response.data.data);
-    } catch (error) {
-        console.error("Failed to fetch courses:", error);
-        throw error;
-    }
-}
-export function getCurrentLocation(): Promise<Coordinates> {
-    return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-            return reject(new Error("Geolocation is not supported."));
-        }
-        navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-            (err) => reject(err)
-        );
-    });
-}
 
-export function buildPrompt(
-    inputs: { course: string; location: string; minFee: number | ''; maxFee: number | ''; duration: number | ''; },
-    courses: Course[],
-    isNearest: boolean,
-    coords: Coordinates | null
-): string {
-    const criteria = [
-        inputs.course && `Course Name Query: "${inputs.course}"`,
-        !isNearest && inputs.location && `Location: "${inputs.location}"`,
-        inputs.minFee && `Minimum Fee: ${inputs.minFee}`,
-        inputs.maxFee && `Maximum Fee: ${inputs.maxFee}`,
-        inputs.duration && `Maximum Duration (in months): ${inputs.duration}`,
-    ].filter(Boolean).join('\n    - ');
+// // Define types for the raw API response structure for type safety
+// interface ApiCourse {
+//     id: number;
+//     name : string;
+//     keywords: string[];
+//     fee: number;
+//     duration: number;
+//     mode : 'Online' | 'Offline' | 'Hybrid';
+//     description: string;
+// }
 
-    const locationRule = isNearest && coords
-        ? `Calculate the distance from the user's current location (${coords.latitude}, ${coords.longitude}) to each course's latitude and longitude.`
-        : `Location must be an exact, case-insensitive match to the user's provided location: "${inputs.location}".`;
+// interface ApiInstitution {
+//     id: number;
+//     name: string;
+//     location: string;
+//     latitude: number;
+//     longitude: number;
+//     courses: ApiCourse[];
+// }
 
-    const taskDescription = isNearest
-        ? `
-Your Task:
-Return a JSON object with two keys: "exactMatches" and "recommendations".
+// /**
+//  * Parses a duration string (e.g., "6 Months") into a number.
+//  * @param durationStr The string to parse.
+//  * @returns The number of months.
+//  */
+// // function parseDuration(durationStr: string): number {
+// //     const match = durationStr.match(/(\d+)/);
+// //     return match ? parseInt(match[0], 10) : 0;
+// // }
+// /**
+//  * Transforms the nested API response into a flat array of Course objects.
+//  * This is the structure the rest of our application expects.
+//  * @param apiData The raw data from the /courses/institution-courses/ endpoint.
+//  * @returns A flattened array of Course objects.
+//  */
+// function transformApiResponse(apiData: ApiInstitution[]): Course[] {
+//     const flattenedCourses: Course[] = [];
+//     apiData.forEach(institution => {
+//         institution.courses.forEach(course => {
+//             flattenedCourses.push({
+//                 id: course.id,
+//                 course: course.name,
+//                 description: course.description,
+//                 keywords: course.keywords,
+//                 fee: course.fee,
+//                 durationInMonths: course.duration,
+//                 institute: institution.name,
+//                 location: institution.location,
+//                 latitude: institution.latitude,
+//                 longitude: institution.longitude,
+//                 mode: course.mode,
+//             });
+//         });
+//     });
+//     console.log(flattenedCourses)
+//     return flattenedCourses;
+// }
+// /**
+//  * Fetches course data from the backend API and transforms it.
+//  * @returns A promise that resolves to an array of Course objects.
+//  */
+// export async function fetchCourses(): Promise<Course[]> {
+//     try {
+//         // **CHANGE**: Replaced fetch with axios.get
+//         // In a real project, the base URL would come from an environment variable.
+//         const response = await api.get<{ data: ApiInstitution[] }>('/courses/institutions-courses/');
+//         // axios automatically checks for non-2xx responses and throws an error.
+//         // The response data is directly available on the `data` property.
+//         return transformApiResponse(response.data.data);
+//     } catch (error) {
+//         console.error("Failed to fetch courses:", error);
+//         throw error;
+//     }
+// }
+// export function getCurrentLocation(): Promise<Coordinates> {
+//     return new Promise((resolve, reject) => {
+//         if (!navigator.geolocation) {
+//             return reject(new Error("Geolocation is not supported."));
+//         }
+//         navigator.geolocation.getCurrentPosition(
+//             (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+//             (err) => reject(err)
+//         );
+//     });
+// }
 
-1.  **"exactMatches":**
-    - **PRIMARY CRITERION:** Courses in this array MUST be located within a 50-kilometer radius of the user's current location (${coords?.latitude}, ${coords?.longitude}). Calculate the distance accurately. ABSOLUTELY EXCLUDE any course further than 50km.
-    - **SECONDARY CRITERIA:** Courses in this array MUST ALSO meet ALL OTHER provided user criteria (Fee range, Max Duration).
+// export function buildPrompt(
+//     inputs: { course: string; location: string; minFee: number | ''; maxFee: number | ''; duration: number | ''; },
+//     courses: Course[],
+//     isNearest: boolean,
+//     coords: Coordinates | null
+// ): string {
+//     const criteria = [
+//         inputs.course && `Course Name Query: "${inputs.course}"`,
+//         !isNearest && inputs.location && `Location: "${inputs.location}"`,
+//         inputs.minFee && `Minimum Fee: ${inputs.minFee}`,
+//         inputs.maxFee && `Maximum Fee: ${inputs.maxFee}`,
+//         inputs.duration && `Maximum Duration (in months): ${inputs.duration}`,
+//     ].filter(Boolean).join('\n    - ');
 
-2.  **"recommendations":**
-    - This array should contain courses where the 'course' name or 'keywords' loosely match the user's query "${inputs.course}".
-    - **IGNORE ALL OTHER CRITERIA** (location/distance, fee, duration) for this list. Just find courses related to the user's query term.
+//     const locationRule = isNearest && coords
+//         ? `Calculate the distance from the user's current location (${coords.latitude}, ${coords.longitude}) to each course's latitude and longitude.`
+//         : `Location must be an exact, case-insensitive match to the user's provided location: "${inputs.location}".`;
 
-If no matches are found in a category, return an empty array for that key. Respond ONLY with the JSON object.`
-        : `
-Your Task:
-Return a JSON object with two keys: "exactMatches" and "recommendations".
+//     const taskDescription = `
+// Your Task:
+// Return a JSON object with two keys: "exactMatches" and "recommendations".
 
-1.  **"exactMatches":**
-    - This array MUST ONLY contain course objects that strictly meet ALL of the user's criteria (Location: "${inputs.location}", Fee range, Max Duration).
-    - Match the location case-insensitively.
+// 1.  **"exactMatches":**
+//     - This is an array of course objects that strictly meet ALL of the user's criteria.
+//     - The user's 'Course Name Query' must be found within the 'keywords' array of the course.
+//     - The fee, duration, and location (or distance, if applicable) must all match the user's criteria.
 
-2.  **"recommendations":**
-    - This array should contain courses where the 'course' name or 'keywords' loosely match the user's query "${inputs.course}".
-    - **IGNORE ALL OTHER CRITERIA** (location, fee, duration) for this list. Just find courses related to the user's query term.
-    - Exclude courses already present in the "exactMatches" array from this list to avoid duplicates.
+// 2.  **"recommendations":**
+//     - This is an array of other suggested courses.
+//     - To create this list, find ALL courses where the user's 'Course Name Query' is found within the 'keywords' array.
+//     - For this "recommendations" list, IGNORE all other criteria like location, fee, and duration.
+//     - To avoid duplicates, do not include any courses in this list that are already present in the "exactMatches" list.
 
+// Always return both "exactMatches" and "recommendations" keys, even if one or both are empty arrays. Respond ONLY with the JSON object.`;
 
-If no matches are found in a category, return an empty array for that key. Respond ONLY with the JSON object.`;
-    // --- END REFINED Prompt Logic ---
+//     return `You are a world-class course-finding AI assistant. Your task is to analyze the user's criteria and filter the provided JSON data of courses.
 
-    return `You are a world-class course-finding AI assistant. Your task is to analyze the user's criteria and filter the provided JSON data of courses.
+// User's Criteria:
+//     - ${criteria || "No specific criteria provided."}
 
-User's Criteria:
-    - ${criteria || "No specific criteria provided."}
-${isNearest ? `User's Current Location: Latitude ${coords?.latitude}, Longitude ${coords?.longitude}` : ''}
+// JSON Data of All Courses:
+// ${JSON.stringify(courses, null, 2)}
 
-JSON Data of All Courses (Format: Array of objects, each object has keys like id, course, description, keywords, fee, durationInMonths, institute, location, latitude, longitude, mode):
-${JSON.stringify(courses, null, 2)}
+// Rules for Matching:
+// 1. The primary way to match a course is by checking if the user's 'Course Name Query' string appears as a substring in any of the strings within the course's 'keywords' array.
+// 2. ${locationRule}
+// 3. Fee must be within the user's minimum and maximum range.
+// 4. durationInMonths must be less than or equal to the user's maximum duration.
 
-Rules for Matching:
-1. Fee must be within the user's minimum and maximum range (inclusive). If only one is provided, treat it as a lower or upper bound. If none provided, ignore fee.
-2. ${locationRule} <-- Apply this rule strictly according to the 'Your Task' section below. For "exactMatches" in nearest search, the 50km limit is ABSOLUTE.
-3. durationInMonths must be less than or equal to the user's maximum duration, if provided. Ignore if not provided.
-4. For course name matching, prioritize matches in the 'course' field over matches in the 'keywords' array.
+// ${taskDescription}
+// `;
+// }
 
-${taskDescription}
-`;
-}
+// export async function callGeminiAPI(prompt: string, retries = 3, delay = 1000): Promise<string> {
+//     const apiKey = "AIzaSyBHkmTAaYexHbV6FCLATyUpmyZWmXPez88"; // API Key is automatically managed by the environment.
+//     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
-export async function callGeminiAPI(prompt: string, retries = 3, delay = 1000): Promise<string> {
-    const apiKey = "AIzaSyBHkmTAaYexHbV6FCLATyUpmyZWmXPez88"; // API Key is automatically managed by the environment.
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+//     const payload = {
+//         contents: [{ parts: [{ text: prompt }] }],
+//     };
 
-    const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-    };
-
-    try {
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const result = await response.json();
-        if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
-             throw new Error("Invalid response structure from API.");
-        }
-        return result.candidates[0].content.parts[0].text;
-    } catch (error) {
-        if (retries > 1) {
-            await new Promise(res => setTimeout(res, delay));
-            return callGeminiAPI(prompt, retries - 1, delay * 2);
-        } else {
-            throw error;
-        }
-    }
-}
+//     try {
+//         const response = await fetch(apiUrl, {
+//             method: 'POST',
+//             headers: { 'Content-Type': 'application/json' },
+//             body: JSON.stringify(payload),
+//         });
+//         if (!response.ok) {
+//             throw new Error(`HTTP error! status: ${response.status}`);
+//         }
+//         const result = await response.json();
+//         if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
+//              throw new Error("Invalid response structure from API.");
+//         }
+//         return result.candidates[0].content.parts[0].text;
+//     } catch (error) {
+//         if (retries > 1) {
+//             await new Promise(res => setTimeout(res, delay));
+//             return callGeminiAPI(prompt, retries - 1, delay * 2);
+//         } else {
+//             throw error;
+//         }
+//     }
+// }
 
 
 
@@ -247,3 +232,172 @@ export async function callGeminiAPI(prompt: string, retries = 3, delay = 1000): 
 //     const a = 0.5 - Math.cos(dLat) / 2 + Math.cos(coords1.latitude * Math.PI / 180) * Math.cos(coords2.latitude * Math.PI / 180) * (1 - Math.cos(dLon)) / 2;
 //     return R * 2 * Math.asin(Math.sqrt(a));
 // }
+
+
+
+
+
+// new code below
+
+
+/**
+ * A utility function to fetch data with exponential backoff.
+ * This helps handle rate limiting and temporary server errors gracefully.
+ */
+const fetchWithRetry = async (
+  url: string,
+  options: RequestInit,
+  retries = 3,
+  delay = 1000
+): Promise<any> => {
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      // Don't retry on client errors (4xx), but do on server errors (5xx) or rate limits (429)
+      if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+        const errorText = await response.text();
+        console.error(`Client error: ${response.status} ${response.statusText}`, errorText);
+        throw new Error(`Client error: ${response.status} ${response.statusText}`);
+      }
+      if (retries > 0) {
+        // This is not logged as an error to the console, per instructions
+        await new Promise(res => setTimeout(res, delay));
+        return fetchWithRetry(url, options, retries - 1, delay * 2);
+      } else {
+        throw new Error(`Failed to fetch after several retries: ${response.status} ${response.statusText}`);
+      }
+    }
+    return response.json();
+  } catch (error) {
+    console.error("Fetch failed:", error); // Log final failure
+    throw error;
+  }
+};
+
+
+/**
+ * REAL GEMINI AI API
+ * This function calls the Gemini API to filter courses based on our logic.
+ */
+export const callGeminiAPI = async (
+  filters: SearchFilters,
+  allCourses: Course[]
+): Promise<AiResponse> => {
+  
+  const model = "gemini-2.5-flash-preview-09-2025";
+  const apiKey = "AIzaSyBHkmTAaYexHbV6FCLATyUpmyZWmXPez88"; // Will be populated by the environment
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  // 1. Define the System Prompt
+  const systemPrompt = `
+    You are an expert AI assistant for a course finding service.
+    Your task is to filter a given JSON list of courses based on a user's JSON criteria.
+    You MUST follow this multi-step fallback logic IN ORDER:
+
+    1.  **Strict Match:** Try to find courses that match all criteria.
+        -   User 'courseName' must be found in the course 'keywords' array (case-insensitive).
+        -   User 'location' must match the course 'location' (case-insensitive).
+        -   Course 'fees' must be between user 'minPrice' and 'maxPrice'. If minPrice is 0, there is no lower bound. If maxPrice is 0 or less than minPrice, there is no upper bound.
+        -   User 'duration' must match the course 'duration' (case-insensitive). If user 'duration' is an empty string, skip this check.
+
+    2.  **Fallback 1 (Location + Course):** If NO strict matches are found (Step 1 is empty).
+        -   Find courses where user 'courseName' is in 'keywords' (case-insensitive).
+        -   AND user 'location' matches course 'location' (case-insensitive).
+        -   Provide the title: "We couldn't meet all your criteria, but here are courses for '[courseName]' in '[location]':"
+
+    3.  **Fallback 2 (Course Only):** If NO matches are found in Step 2.
+        -   Find courses where user 'courseName' is in 'keywords' (case-insensitive), ignoring all other filters.
+        -   Provide the title: "We couldn't find '[courseName]' in your city, but here are options in other locations:"
+
+    4.  **No Match:** If no matches are found in any step.
+        -   Return an empty 'results' array.
+        -   Provide the title: "Sorry, we couldn't find any courses matching your criteria."
+    
+    If Step 1 (Strict Match) is successful, provide the title: "Here are the exact matches we found:"
+    
+    You MUST return a single, valid JSON object matching the provided schema. Do not return markdown.
+  `;
+
+  // 2. Define the User Query
+  const userQuery = `
+    Here is the full list of available courses:
+    ${JSON.stringify(allCourses)}
+
+    Here are the user's search filters:
+    ${JSON.stringify(filters)}
+
+    Please process the list according to the system instructions and return the resulting JSON object.
+  `;
+
+  // 3. Define the Response Schema
+  const responseSchema = {
+    type: "OBJECT",
+    properties: {
+      title: { type: "STRING" },
+      results: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          properties: {
+            id: { type: "NUMBER" },
+            courseName: { type: "STRING" },
+            courseTitle: { type: "STRING" },
+            description: { type: "STRING" },
+            institutionName: { type: "STRING" },
+            keywords: { type: "ARRAY", items: { type: "STRING" } },
+            location: { type: "STRING" },
+            fees: { type: "NUMBER" },
+            duration: { type: "NUMBER" },
+            latitude: { type: "STRING" },
+            longitude: { type: "STRING" },
+            district: { type: "STRING" },
+            mode: { type: "STRING" },
+          },
+          required: ["id", "courseName", "institutionName", "courseTitle", 
+            "description", "keywords", "location", "fees", "duration", 
+            "latitude", "longitude", "district", "mode"
+          ],
+        },
+      },
+    },
+    required: ["title", "results"],
+  };
+
+  // 4. Construct the API Payload
+  const payload = {
+    contents: [{ parts: [{ text: userQuery }] }],
+    systemInstruction: {
+      parts: [{ text: systemPrompt }],
+    },
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: responseSchema,
+      temperature: 0.0, 
+    },
+  };
+
+  // 5. Make the API Call
+  try {
+    const result = await fetchWithRetry(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!result.candidates || !result.candidates[0].content.parts[0].text) {
+      throw new Error("Invalid response structure from Gemini API");
+    }
+
+    const responseJsonText = result.candidates[0].content.parts[0].text;
+    const parsedResponse: AiResponse = JSON.parse(responseJsonText);
+    
+    return parsedResponse;
+
+  } catch (error) {
+    console.error("Error calling Gemini API:", error);
+    return {
+      title: "An error occurred while searching. Please try again.",
+      results: [],
+    };
+  }
+};

@@ -1,8 +1,26 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
-import { Plus, Building, MapPin, BookOpen, Clock, Tag, Edit, X, Trash2, DollarSign } from "lucide-react" // Added DollarSign
-import api from "../api/client" // Removed .ts extension, assuming module resolution handles it
+import { Plus, Building, MapPin, BookOpen, Clock, Tag, Edit, X, Trash2, DollarSign } from "lucide-react"
+import api from "../api/client.ts" // Assuming .ts extension is needed for your setup
+
+// --- Kerala Districts ---
+const keralaDistricts: string[] = [
+  "Thiruvananthapuram",
+  "Kollam",
+  "Pathanamthitta",
+  "Alappuzha",
+  "Kottayam",
+  "Idukki",
+  "Ernakulam",
+  "Thrissur",
+  "Palakkad",
+  "Malappuram",
+  "Kozhikode",
+  "Wayanad",
+  "Kannur",
+  "Kasaragod",
+];
 
 export default function ProviderDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -15,6 +33,7 @@ export default function ProviderDashboard() {
   const [showInstitutionForm, setShowInstitutionForm] = useState(false)
   const [courseData, setCourseData] = useState({
     course: "",
+    courseTitle: "",
     keywords: "",
     duration: "",
     fees: "",
@@ -23,6 +42,7 @@ export default function ProviderDashboard() {
   })
   const [institutionData, setInstitutionData] = useState({
     institution: "",
+    district: "",
     location: "",
     latitude: "",
     longitude: "",
@@ -32,6 +52,13 @@ export default function ProviderDashboard() {
   const [editCourseId, setEditCourseId] = useState<number | null>(null)
   const [showCourseForm, setShowCourseForm] = useState(false)
   const [showCoursesPopup, setShowCoursesPopup] = useState(false)
+  
+  // --- State for District Autocomplete ---
+  const [districtSuggestions, setDistrictSuggestions] = useState<string[]>([]);
+  const [highlightedDistrictIndex, setHighlightedDistrictIndex] = useState(-1);
+  const districtAutocompleteRef = useRef<HTMLDivElement>(null);
+  const locationButtonRef = useRef<HTMLButtonElement>(null); // Ref for the "Use Current Location" button
+
   const navigate = useNavigate()
 
   // Fetch user and institutions on mount
@@ -39,56 +66,58 @@ export default function ProviderDashboard() {
     const userData = localStorage.getItem("user")
     if (userData) {
       const parsedUser = JSON.parse(userData)
-      // Basic role check - adapt as needed for your auth system
       if (!parsedUser || parsedUser.role !== "provider") {
         navigate("/login")
         return
       }
       setUser(parsedUser)
-      fetchInstitutions(parsedUser) // Pass user data if needed for filtering
+      fetchInstitutions(parsedUser)
     } else {
       navigate("/login")
     }
   }, [navigate])
 
+  // --- Click outside listener for district autocomplete ---
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (districtAutocompleteRef.current && !districtAutocompleteRef.current.contains(event.target as Node)) {
+        setDistrictSuggestions([]);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Fetch all institutions for provider
   const fetchInstitutions = async (parsedUser: any) => {
     setIsLoading(true)
     try {
-      // Assuming 'api' is configured to include the auth token
-      const response = await api.get("/courses/provider-institutes/") // Use the correct endpoint
-      setInstitutions(response.data || []) // Ensure it's an array
-
-      // Auto-select logic refined
+      const response = await api.get("/courses/provider-institutes/")
+      setInstitutions(response.data || []) 
       if (response.data && response.data.length > 0) {
-        // If an institution is already selected (e.g., after edit), keep it selected
         const currentSelectedId = selectedInstitution?.id;
         const updatedSelection = response.data.find((inst: any) => inst.id === currentSelectedId);
 
         if (updatedSelection) {
             setSelectedInstitution(updatedSelection);
-            // fetchCourses(updatedSelection.id); // Refresh courses for the updated selection
-        } else if (!selectedInstitution) { // Only auto-select if nothing was previously selected
-            // setSelectedInstitution(response.data[0]);
-            // fetchCourses(response.data[0].id);
+        } else if (!selectedInstitution) {
+           // No auto-selection
         } else {
-            // The previously selected institution might have been deleted
              setSelectedInstitution(null);
              setCourses([]);
              setShowCoursesPopup(false);
         }
       } else {
-          // No institutions left
           setSelectedInstitution(null);
           setCourses([]);
           setShowCoursesPopup(false);
       }
-
-
     } catch (err) {
       setMessage("Failed to fetch institutions.")
-      console.error("Fetch Institutions Error:", err); // Log error for debugging
-      setInstitutions([]); // Reset on error
+      console.error("Fetch Institutions Error:", err);
+      setInstitutions([]);
     } finally {
       setIsLoading(false)
     }
@@ -96,74 +125,74 @@ export default function ProviderDashboard() {
 
   // Fetch courses for a given institution
   const fetchCourses = async (institutionId: number) => {
-    // Only set loading if not already loading from a parent operation
     setIsCourseLoading(true);
     setMessage("")
-    // setIsLoading(true); // Maybe set a specific course loading state?
     try {
       const response = await api.get(`/courses/institutes/${institutionId}/details/`)
-      // Ensure courses data exists and is an array
       setCourses(Array.isArray(response.data?.courses) ? response.data.courses : [])
     } catch (err) {
-      setCourses([]) // Reset courses on error
+      setCourses([]) 
       setMessage(`Failed to fetch courses for institution ID ${institutionId}.`)
-      console.error(`Fetch Courses Error (ID: ${institutionId}):`, err); // Log error
+      console.error(`Fetch Courses Error (ID: ${institutionId}):`, err);
     } finally {
-      // setIsLoading(false);
       setIsCourseLoading(false);
     }
   }
 
   // Handle institution selection
   const handleSelectInstitution = (inst: any) => {
-    if (selectedInstitution?.id !== inst.id) { // Fetch courses only if selection changes
+    if (selectedInstitution?.id !== inst.id) { 
         setSelectedInstitution(inst);
-        setCourses([]); // Clear previous courses while loading new ones
-        setMessage(""); // Clear previous messages
+        setCourses([]); 
+        setMessage(""); 
         setIsCourseLoading(true);
-        fetchCourses(inst.id); // Fetch courses for the newly selected institution
-        
+        fetchCourses(inst.id);
     }
-    setShowCoursesPopup(true); // Always show the popup on click
+    setShowCoursesPopup(true); 
   }
 
   // Handle institution edit setup
   const handleEditInstitution = (inst: any) => {
     setEditInstitutionId(inst.id)
     setInstitutionData({
-      institution: inst.name || "", // Ensure values are strings
+      institution: inst.name || "", 
       location: inst.location || "",
-      latitude: String(inst.latitude || ""), // Convert to string
-      longitude: String(inst.longitude || ""), // Convert to string
+      district: inst.district || "",
+      latitude: String(inst.latitude || ""), 
+      longitude: String(inst.longitude || ""), 
       id: inst.id,
     })
     setShowInstitutionForm(true)
-    setMessage("") // Clear message when opening form
+    setMessage("")
   }
 
   // Handle course edit setup
   const handleEditCourse = (course: any) => {
     setEditCourseId(course.id)
     setCourseData({
-      course: course.name || "", // Ensure values are strings
+      course: course.name || "", 
+      courseTitle: course.courseTitle || "", // Make sure to handle course.courseTitle
       keywords: Array.isArray(course.keywords) ? course.keywords.join(", ") : course.keywords || "",
-      duration: String(course.duration || ""), // Convert to string
-      fees: String(course.fee || ""), // Convert to string (use 'fee' from backend)
+      duration: String(course.duration || ""), 
+      fees: String(course.fee || ""), 
       description: course.description || "",
       mode: course.mode || "Offline",
     })
     setShowCourseForm(true)
-    setMessage("") // Clear message when opening form
+    setMessage("")
   }
 
   // Handle institution form submit (add or edit)
   const handleInstitutionSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setMessage("") // Clear message before submission attempt
+    setMessage("") 
 
-    // Basic validation
     if (!institutionData.institution.trim()) {
         setMessage("⚠️ Institution name is required.");
+        return;
+    }
+    if (!institutionData.district.trim()) {
+        setMessage("⚠️ District is required.");
         return;
     }
     if(!institutionData.latitude || !institutionData.longitude){
@@ -171,42 +200,39 @@ export default function ProviderDashboard() {
       return
     }
 
-    setIsLoading(true) // Set loading *before* API call
+    setIsLoading(true) 
 
     try {
       const payload = {
           name: institutionData.institution,
           location: institutionData.location,
-          // Ensure latitude and longitude are numbers if required by backend, otherwise keep as strings
+          district: institutionData.district,
           latitude: parseFloat(institutionData.latitude) || 0,
           longitude: parseFloat(institutionData.longitude) || 0,
       };
 
       if (editInstitutionId) {
-        // Edit institution
         await api.put(`/courses/institutes/${editInstitutionId}/edit/`, payload)
         setMessage("✅ Institution updated successfully!")
       } else {
-        // Add institution
         await api.post("/courses/add-institute/", payload)
         setMessage("✅ Institution added successfully!")
       }
-      // Reset form and states after successful submission
       setShowInstitutionForm(false)
       setEditInstitutionId(null)
-      setInstitutionData({ // Clear form data
-        institution: "", location: "", latitude: "", longitude: "", id: undefined,
+      setInstitutionData({ 
+        institution: "", location: "", district: "", latitude: "", longitude: "", id: undefined,
       })
-      fetchInstitutions(user) // Refetch institutions list to show changes
+      fetchInstitutions(user) 
     } catch (err: any) {
-       // Provide more specific error feedback
       const errorDetail = err.response?.data?.detail || err.response?.data || err.message || 'Unknown error';
       setMessage(`❌ Failed to save institution: ${errorDetail}`)
-      console.error("Institution Submit Error:", err); // Log detailed error
+      console.error("Institution Submit Error:", err);
     } finally {
-      setIsLoading(false) // Ensure loading is turned off regardless of success/failure
+      setIsLoading(false) 
     }
   }
+
    // Helper function to count words
     const countWords = (str: string): number => {
       return str.trim().split(/\s+/).filter(Boolean).length;
@@ -215,15 +241,14 @@ export default function ProviderDashboard() {
   // Handle course form submit (add or edit)
   const handleCourseSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setMessage("") // Clear previous messages
+    setMessage("") 
     
-    // --- Validation Checks ---
     if (!selectedInstitution) {
         setMessage("⚠️ Please select an institution first.")
         return
     }
-    if (!courseData.course.trim() || !courseData.keywords.trim() || !courseData.duration || !courseData.fees || !courseData.description.trim()) {
-        setMessage("⚠️ Please fill in all required course fields (Name, Keywords, Duration, Fees, Description).");
+    if (!courseData.course.trim() || !courseData.keywords.trim() || !courseData.duration || !courseData.fees || !courseData.description.trim() || !courseData.courseTitle.trim()) {
+        setMessage("⚠️ Please fill in all required course fields (Name, Keywords, Duration, Fees, Description, Course Title).");
         return;
     }
 
@@ -239,7 +264,7 @@ export default function ProviderDashboard() {
         setMessage("⚠️ Course fee must be a non-negative number.");
         return;
     }
-    if(feeValue < 1000){
+     if(feeValue < 1000){
         setMessage("⚠️ Course fee seems too low. Please enter a valid amount (at least ₹1000).");
         return;
     }
@@ -247,56 +272,50 @@ export default function ProviderDashboard() {
         setMessage(`⚠️ Description must be between 10 and 120 words (currently ${descriptionWordCount}).`);
         return;
     }
-
-
-    // --- End Validation ---
-
-    setIsLoading(true); // Set loading state *before* API call
+    
+    setIsLoading(true); 
 
     try {
       const payload = {
-        institute: selectedInstitution.id, // Ensure this ID is correct
+        institute: selectedInstitution.id, 
         name: courseData.course,
+        courseTitle: courseData.courseTitle,
         keywords: courseData.keywords
           .split(",")
-          .map(k => k.trim()) // Trim whitespace
-          .filter(Boolean), // Remove empty strings
-        duration: durationValue, // Use validated number
-        fee: feeValue,           // Use validated number
+          .map(k => k.trim()) 
+          .filter(Boolean), 
+        duration: durationValue, 
+        fee: feeValue,           
         description: courseData.description,
         mode: courseData.mode,
       }
 
       if (editCourseId) {
-        // Edit existing course
         await api.put(`/courses/courses/${editCourseId}/edit/`, payload)
         setMessage("✅ Course updated successfully!")
       } else {
-        // Add new course
         await api.post("/courses/add-course/", payload)
         setMessage("✅ Course added successfully!")
       }
-
-      // Reset form state and close modal on success
+      
       setEditCourseId(null)
-      setCourseData({ // Reset form data
-        course: "", keywords: "", duration: "", fees: "", description: "", mode: "Offline",
+      setCourseData({ 
+        course: "", keywords: "", duration: "", fees: "", description: "", courseTitle: "", mode: "Offline",
       })
       setShowCourseForm(false)
-      fetchCourses(selectedInstitution.id) // Refetch courses for the current institution
+      fetchCourses(selectedInstitution.id) 
 
     } catch (err: any) {
         const errorDetail = err.response?.data?.detail || err.response?.data || err.message || 'Unknown error';
         setMessage(`❌ Failed to save course: ${errorDetail}`)
-        console.error("Course Submit Error:", err); // Log detailed error
+        console.error("Course Submit Error:", err); 
     } finally {
-      setIsLoading(false) // Ensure loading is turned off
+      setIsLoading(false) 
     }
   }
 
   // Delete institution and its courses
   const handleDeleteInstitution = async (instId: number) => {
-    // Replace window.confirm with a proper modal confirmation in a real app
     if (!confirm("Are you sure you want to delete this institution and ALL its courses? This action cannot be undone.")) return
 
     setIsLoading(true)
@@ -304,10 +323,10 @@ export default function ProviderDashboard() {
     try {
       await api.delete(`/courses/institutes/${instId}/delete/`)
       setMessage("✅ Institution deleted successfully!")
-      setShowCoursesPopup(false) // Close popup if open for this institution
-      setSelectedInstitution(null) // Deselect
-      setCourses([]) // Clear courses display
-      fetchInstitutions(user) // Refetch list to remove the deleted one
+      setShowCoursesPopup(false) 
+      setSelectedInstitution(null) 
+      setCourses([]) 
+      fetchInstitutions(user) 
     } catch (err: any) {
       const errorDetail = err.response?.data?.detail || err.message || 'Unknown error';
       setMessage(`❌ Failed to delete institution: ${errorDetail}`)
@@ -319,7 +338,6 @@ export default function ProviderDashboard() {
 
   // Delete a single course
   const handleDeleteCourse = async (courseId: number) => {
-    // Replace window.confirm with a proper modal confirmation
     if (!confirm("Are you sure you want to delete this course?")) return
 
     setIsLoading(true)
@@ -328,7 +346,7 @@ export default function ProviderDashboard() {
       await api.delete(`/courses/courses/${courseId}/delete/`)
       setMessage("✅ Course deleted successfully!")
       if (selectedInstitution) {
-          fetchCourses(selectedInstitution.id) // Refresh course list for the current institution
+          fetchCourses(selectedInstitution.id) 
       }
     } catch (err: any) {
       const errorDetail = err.response?.data?.detail || err.message || 'Unknown error';
@@ -341,7 +359,7 @@ export default function ProviderDashboard() {
 
   // Get user's location using Geoapify
   const handleAccessLocation = () => {
-    setMessage(""); // Clear previous messages
+    setMessage(""); 
     if (!navigator.geolocation) {
       setMessage("⚠️ Geolocation is not supported by your browser")
       return
@@ -352,7 +370,7 @@ export default function ProviderDashboard() {
         const { latitude, longitude } = position.coords
 
         try {
-          const apiKey = "c9415ba75dd14ce0ac9d47160d8a12d6" // 🔑 Use environment variable in production!
+          const apiKey = "c9415ba75dd14ce0ac9d47160d8a12d6" 
           const response = await fetch(
             `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${apiKey}`
           )
@@ -361,16 +379,16 @@ export default function ProviderDashboard() {
 
           if (data?.features?.length > 0) {
             const place = data.features[0].properties
-            // Construct a useful location name, preferring city/town/village
             const locationName = [place.city, place.town, place.village, place.county, place.state, place.country].filter(Boolean).join(', ');
 
             setInstitutionData((prev) => ({
               ...prev,
-              location: place.formatted || locationName || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, // Use formatted or build, fallback to coords
-              latitude: latitude.toFixed(6), // Use sufficient precision
+              location: place.formatted || locationName || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+              district: place.county || place.state_district || "", // Try to get district
+              latitude: latitude.toFixed(6), 
               longitude: longitude.toFixed(6),
             }))
-            setMessage("✅ Location fetched successfully!"); // Provide feedback
+            setMessage("✅ Location fetched successfully!"); 
           } else {
               setMessage("⚠️ Could not fetch location details from coordinates.")
           }
@@ -400,22 +418,67 @@ export default function ProviderDashboard() {
           }
           setMessage(geoMessage);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Add options for better accuracy/handling
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } 
     )
   }
 
+  // --- District Autocomplete Handlers ---
+  const handleDistrictChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInstitutionData({ ...institutionData, district: value });
+
+    if (value.length > 0) {
+      const filtered = keralaDistricts.filter(d => 
+        d.toLowerCase().includes(value.toLowerCase())
+      );
+      setDistrictSuggestions(filtered);
+    } else {
+      setDistrictSuggestions([]);
+    }
+  };
+
+  const handleSelectDistrict = (district: string) => {
+    setInstitutionData({ ...institutionData, district });
+    setDistrictSuggestions([]);
+    setHighlightedDistrictIndex(-1);
+  };
+
+  const handleDistrictKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (districtSuggestions.length === 0) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            locationButtonRef.current?.focus(); // Move focus to location button
+        }
+        return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedDistrictIndex(prev => (prev + 1) % districtSuggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedDistrictIndex(prev => (prev - 1 + districtSuggestions.length) % districtSuggestions.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedDistrictIndex > -1) {
+        handleSelectDistrict(districtSuggestions[highlightedDistrictIndex]);
+      } else {
+        setDistrictSuggestions([]); // Close suggestions
+      }
+      locationButtonRef.current?.focus(); // Move focus to location button
+    }
+  };
+
   // Simplified Logout (replace with your actual auth logic)
-  // const handleLogout = () => {
-  //     localStorage.removeItem("user");
-      
-  //     navigate("/login");
-  // };
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-gray-200">
-      {/* Header */}
-      {/* <header className="sticky top-0 z-30 bg-gray-900/80 backdrop-blur border-b border-gray-700 shadow-md">
+      <header className="sticky top-0 z-30 bg-gray-900/80 backdrop-blur border-b border-gray-700 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-cyan-400">
@@ -429,16 +492,12 @@ export default function ProviderDashboard() {
             onClick={handleLogout} 
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-600/20 border border-red-600/30 text-red-300 hover:bg-red-600/30 transition-colors text-xs"
           >
-          
             Logout
           </button>
         </div>
-      </header> */}
+      </header>
 
-      {/* Main Content Area */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-
-          {/* Global Message Display Area (outside popups) */}
            {message && !showInstitutionForm && !showCourseForm && !showCoursesPopup && (
                <motion.div
                  initial={{ opacity: 0, y: -10 }}
@@ -451,12 +510,10 @@ export default function ProviderDashboard() {
                      : "bg-red-500/10 border-red-500/30 text-red-300"
                  }`}
                >
-                 {message.replace(/^[✅⚠️❌]\s*/, '')} {/* Remove icon prefix for display */}
+                 {message.replace(/^[✅⚠️❌]\s*/, '')} 
                </motion.div>
              )}
 
-
-        {/* Institutions Section */}
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-cyan-300 flex items-center gap-2">
@@ -466,17 +523,17 @@ export default function ProviderDashboard() {
               onClick={() => {
                 setShowInstitutionForm(true);
                 setEditInstitutionId(null);
-                setInstitutionData({ institution: "", location: "", latitude: "", longitude: "", id: undefined });
-                setMessage(""); // Clear message when opening form
+                setInstitutionData({ institution: "", location: "", district: "", latitude: "", longitude: "", id: undefined });
+                setMessage(""); 
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-medium transition-colors shadow-sm hover:shadow-md"
-              disabled={isLoading && institutions.length === 0} // Disable while loading initial data
+              disabled={isLoading && institutions.length === 0} 
             >
               <Plus size={14} /> Add Institution
             </button>
           </div>
 
-          {isLoading && institutions.length === 0 ? (
+          {isLoading && institutions.length === 0 ? ( 
              <div className="flex items-center justify-center text-cyan-400 my-4 p-4 bg-gray-800/50 rounded-lg">
                 <div className="w-5 h-5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mr-2"></div>
                 Loading Institutions...
@@ -488,7 +545,7 @@ export default function ProviderDashboard() {
                 {institutions.map(inst => (
                   <motion.div
                     key={inst.id}
-                    layout // Animate layout changes
+                    layout 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -500,9 +557,10 @@ export default function ProviderDashboard() {
                     onClick={() => handleSelectInstitution(inst)}
                   >
                      <div className="flex justify-between items-start">
-                        <div className="flex-1 min-w-0 pr-10"> {/* Allow shrinking and prevent overlap */}
+                        <div className="flex-1 min-w-0 pr-10"> 
                             <h3 className="font-semibold text-md text-cyan-300 group-hover:text-cyan-200 truncate">{inst.name}</h3>
                             <p className="text-gray-400 text-xs truncate">{inst.location}</p>
+                            <p className="text-gray-400 text-xs truncate">District : {inst.district}</p>
                             <p className="text-gray-500 text-xs mt-1 truncate">
                                 Lat: {inst.latitude}, Lng: {inst.longitude}
                             </p>
@@ -528,13 +586,12 @@ export default function ProviderDashboard() {
 
         {/* --- Modals / Popups --- */}
 
-        {/* Courses Popup */}
         <AnimatePresence>
           {showCoursesPopup && selectedInstitution && (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-              onClick={() => { setShowCoursesPopup(false); setMessage(""); }} // Clear message on close
+              onClick={() => { setShowCoursesPopup(false); setMessage(""); }} 
             >
               <motion.div
                 initial={{ y: 20, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 20, opacity: 0, scale: 0.98 }}
@@ -542,7 +599,6 @@ export default function ProviderDashboard() {
                 className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-3xl relative shadow-2xl shadow-black/30 max-h-[90vh] flex flex-col"
                 onClick={e => e.stopPropagation()}
               >
-                 {/* Header */}
                  <div className="flex items-center justify-between p-4 border-b border-gray-700 sticky top-0 bg-gray-800 rounded-t-xl z-10">
                     <div className="flex items-center gap-3 min-w-0">
                       <BookOpen className="text-cyan-400 flex-shrink-0" size={20} />
@@ -552,8 +608,9 @@ export default function ProviderDashboard() {
                     </div>
                      <div className="flex items-center gap-2">
                          <button
-                           onClick={() => { setEditCourseId(null); setCourseData({ course: "", keywords: "", duration: "", fees: "", description: "", mode: "Offline" }); setShowCourseForm(true); setMessage(""); }}
+                           onClick={() => { setEditCourseId(null); setCourseData({ course: "", keywords: "", duration: "", fees: "", description: "", courseTitle: "", mode: "Offline" }); setShowCourseForm(true); setMessage(""); }}
                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-medium transition-colors"
+                           disabled={isCourseLoading}
                          > <Plus size={14} /> Add </button>
                         <button
                           className="text-gray-500 hover:text-white p-1 rounded-full hover:bg-gray-700 transition-colors"
@@ -563,11 +620,10 @@ export default function ProviderDashboard() {
                     </div>
                  </div>
 
-                 {/* Message Display inside Popup */}
-                 {message && ( /* Only show message if popup is active */
+                 {message && (
                      <motion.div
                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                       className={`mx-4 mt-4 p-3 rounded-lg border text-xs overflow-hidden ${ /* Smaller text */
+                       className={`mx-4 mt-4 p-3 rounded-lg border text-xs overflow-hidden ${
                          message.includes("✅") ? "bg-green-500/10 border-green-500/30 text-green-300"
                          : message.startsWith("⚠️") ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-300"
                          : "bg-red-500/10 border-red-500/30 text-red-300"
@@ -575,7 +631,6 @@ export default function ProviderDashboard() {
                      > {message.replace(/^[✅⚠️❌]\s*/, '')} </motion.div>
                    )}
 
-                {/* Course List Area */}
                 <div className="overflow-y-auto flex-grow p-4 space-y-3">
                   {isCourseLoading ? (
                      <div className="flex items-center justify-center text-cyan-400 py-6">
@@ -591,7 +646,7 @@ export default function ProviderDashboard() {
                         className="rounded-lg border border-gray-700 bg-gray-900/40 p-3 group relative transition-colors hover:border-gray-600"
                       >
                          <div className="flex justify-between items-start mb-1.5">
-                            <div className="flex-1 min-w-0 pr-12"> {/* Space for buttons */}
+                            <div className="flex-1 min-w-0 pr-12"> 
                                 <h4 className="font-semibold text-sm text-cyan-300 truncate">{course.name}</h4>
                                 <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-gray-400 text-xs mt-1">
                                     <span className="flex items-center gap-1"><Clock size={11}/> {course.duration || 'N/A'} Months</span>
@@ -631,13 +686,12 @@ export default function ProviderDashboard() {
           )}
         </AnimatePresence>
 
-        {/* Institution Form Popup */}
         <AnimatePresence>
           {showInstitutionForm && (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-               onClick={() => { setShowInstitutionForm(false); setMessage(""); }} // Clear message on close
+               onClick={() => { setShowInstitutionForm(false); setMessage(""); }} 
             >
               <motion.div
                  initial={{ y: 20, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 20, opacity: 0, scale: 0.98 }}
@@ -645,7 +699,6 @@ export default function ProviderDashboard() {
                 className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-md relative shadow-2xl shadow-black/30 flex flex-col"
                 onClick={e => e.stopPropagation()}
               >
-                 {/* Header */}
                  <div className="flex items-center justify-between p-4 border-b border-gray-700 sticky top-0 bg-gray-800 rounded-t-xl z-10">
                     <div className="flex items-center gap-3">
                       <Building className="text-cyan-400 flex-shrink-0" size={20} />
@@ -660,9 +713,7 @@ export default function ProviderDashboard() {
                      > <X size={18} /> </button>
                  </div>
 
-                 {/* Form Area */}
                  <div className="p-4 overflow-y-auto">
-                     {/* Message Display inside Popup */}
                      {message && (
                          <motion.div
                            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
@@ -684,19 +735,52 @@ export default function ProviderDashboard() {
                           placeholder="Enter institution name" required disabled={isLoading}
                         />
                       </div>
+                      
+                      {/* --- NEW District Autocomplete Input --- */}
+                      <div className="relative" ref={districtAutocompleteRef}>
+                        <label className="block text-cyan-300 mb-1 font-medium text-xs"> District </label>
+                        <input
+                          type="text" name="district" value={institutionData.district}
+                          onChange={handleDistrictChange}
+                          onKeyDown={handleDistrictKeyDown}
+                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm"
+                          placeholder="Enter district" required disabled={isLoading}
+                        />
+                        {districtSuggestions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                            {districtSuggestions.map((district, index) => (
+                              <div
+                                key={district}
+                                onClick={() => handleSelectDistrict(district)}
+                                className={`p-2 cursor-pointer text-sm ${
+                                  index === highlightedDistrictIndex
+                                    ? 'bg-blue-600 text-white'
+                                    : 'hover:bg-gray-600'
+                                }`}
+                              >
+                                {district}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       <div>
-                            <label className="block text-cyan-300 mb-1 font-medium text-xs"> Location </label>
+                            <label className="block text-cyan-300 mb-1 font-medium text-xs"> Street Address </label>
                             <div className="flex gap-2 items-center">
                                  <input
                                    type="text" name="location" value={institutionData.location}
-                                   readOnly // Make it read-only, filled by button
+                                   readOnly 
                                    className="flex-grow px-3 py-2 rounded-md bg-gray-700/50 border border-gray-600 text-gray-300 placeholder-gray-500 outline-none text-sm cursor-default"
                                    placeholder="(Auto-filled)" required disabled={isLoading}
                                  />
-                                 <button type="button" onClick={handleAccessLocation}
+                                 <button 
+                                   type="button" 
+                                   onClick={handleAccessLocation}
+                                   ref={locationButtonRef} // Add ref here
                                    className="flex-shrink-0 p-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-xs whitespace-nowrap disabled:opacity-50 transition-colors"
                                    disabled={isLoading} title="Get current location"
-                                  >{isLoading ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></div> : <MapPin size={14}/>} </button>
+                                 > {isLoading ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></div> : <MapPin size={14}/>} </button>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -741,13 +825,12 @@ export default function ProviderDashboard() {
           )}
         </AnimatePresence>
 
-        {/* Course Form Popup */}
         <AnimatePresence>
           {showCourseForm && (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-              onClick={() => { setShowCourseForm(false); setMessage(""); }} // Clear message on close
+              onClick={() => { setShowCourseForm(false); setMessage(""); }} 
             >
               <motion.div
                  initial={{ y: 20, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 20, opacity: 0, scale: 0.98 }}
@@ -755,7 +838,6 @@ export default function ProviderDashboard() {
                 className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-lg relative shadow-2xl shadow-black/30 max-h-[90vh] flex flex-col"
                  onClick={e => e.stopPropagation()}
               >
-                  {/* Header */}
                   <div className="flex items-center justify-between p-4 border-b border-gray-700 sticky top-0 bg-gray-800 rounded-t-xl z-10">
                      <div className="flex items-center gap-3 min-w-0">
                         <BookOpen className="text-cyan-400 flex-shrink-0" size={20} />
@@ -771,9 +853,7 @@ export default function ProviderDashboard() {
                       > <X size={18} /> </button>
                   </div>
 
-                  {/* Form Area */}
                   <div className="p-4 overflow-y-auto">
-                     {/* Message Display inside Popup */}
                      {message && (
                          <motion.div
                            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
@@ -796,6 +876,15 @@ export default function ProviderDashboard() {
                         />
                       </div>
                       <div>
+                        <label className="block text-cyan-300 mb-1 font-medium text-xs"> Course Title </label>
+                        <input
+                          type="text" name="courseTitle" value={courseData.courseTitle}
+                          onChange={e => setCourseData({ ...courseData, courseTitle: e.target.value })}
+                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm"
+                          placeholder="Enter course title" required disabled={isLoading}
+                        />
+                      </div>
+                      <div>
                         <label className="block text-cyan-300 mb-1 font-medium text-xs"> Keywords </label>
                         <input
                           type="text" name="keywords" value={courseData.keywords} required
@@ -810,19 +899,34 @@ export default function ProviderDashboard() {
                         <div>
                           <label className="block text-cyan-300 mb-1 font-medium text-xs"> Duration (Months) </label>
                           <input
-                            type="number" name="duration" value={courseData.duration}
-                            onChange={e => setCourseData({ ...courseData, duration: e.target.value })}
-                            placeholder="e.g. 12" min="1"
+                            type="number"
+                            name="duration"
+                            value={courseData.duration}
+                            onChange={e => {
+                                const val = e.target.value;
+                                if (val === '' || (/^\d{1,2}$/.test(val) && parseInt(val, 10) >= 1 && parseInt(val, 10) <= 99)) {
+                                    setCourseData({ ...courseData, duration: val })
+                                }
+                            }}
+                            placeholder="e.g. 12"
+                            min="1"
+                            max="99" 
                             className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            required disabled={isLoading}
+                            required
+                            disabled={isLoading}
                           />
                         </div>
                         <div>
                           <label className="block text-cyan-300 mb-1 font-medium text-xs"> Course Fees (₹) </label>
                           <input
                             type="number" name="fees" value={courseData.fees}
-                            onChange={e => setCourseData({ ...courseData, fees: e.target.value })}
-                            placeholder="45000" min="0"
+                            onChange={e => {
+                                const val = e.target.value;
+                                if (val === '' || /^\d{1,5}$/.test(val)) {
+                                     setCourseData({ ...courseData, fees: val })
+                                }
+                            }}
+                            placeholder="45000" min="0" max="99999" 
                             className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             required disabled={isLoading}
                           />
@@ -843,7 +947,7 @@ export default function ProviderDashboard() {
                         <select
                           name="mode" value={courseData.mode}
                           onChange={e => setCourseData({ ...courseData, mode: e.target.value })}
-                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 focus:ring-1 focus:ring-cyan-400 outline-none transition-all text-sm appearance-none"
+                          className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 focus:ring-1 focus:ring-cyan-400 outline-none transition-all text-sm appearance-none" 
                           required disabled={isLoading}
                         >
                           <option value="Offline">Offline</option>

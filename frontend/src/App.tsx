@@ -11,8 +11,9 @@ import GetAllCourses from "./pages/GetAllCourses.tsx"
 import CreateUser from "./pages/CreateUser.tsx"
 // import FindInstitution from "./components/FindInstitution.tsx"
 import CareerGuide from "./components/CareerGuide.tsx"
-import FindInstitution from "./pages/FindInstitution.tsx"
-import SearchResult from "./pages/SearchResult.tsx"
+import FindInstitution from "./components/FindInstitution.tsx"
+// import FindInstitution from "./pages/FindInstitution.tsx"
+// import SearchResult from "./pages/SearchResult.tsx"
 
 
 function App() {
@@ -70,6 +71,7 @@ function App() {
         <Route path="/user/login" element={<UnifiedLogin />} />
         <Route path="/admin/login" element={<UnifiedLogin />} />
         <Route path="/provider/login" element={<UnifiedLogin />} />
+        {/* <Route path="/find-institutions" element={<FindInstitution />} /> */}
         <Route path="/find-institutions" element={<FindInstitution />} />
         {/* <Route path="/search" element={<SearchResult />} /> */}
 
