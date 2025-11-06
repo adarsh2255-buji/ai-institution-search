@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
-import { Plus, Building, MapPin, BookOpen, Clock, Tag, Edit, X, Trash2, DollarSign } from "lucide-react"
+import { Plus, Building, MapPin, BookOpen, Clock, Edit, X, Trash2, DollarSign } from "lucide-react"
 import api from "../api/client.ts" // Assuming .ts extension is needed for your setup
 
 // --- Kerala Districts ---
@@ -22,6 +22,17 @@ const keralaDistricts: string[] = [
   "Kasaragod",
 ];
 
+// First, update the courseData state interface (add this near the top of your file)
+interface CourseData {
+  course: string;
+  course_title: string; // Changed from courseTitle to course_title
+  keywords: string;
+  duration: string;
+  fees: string;
+  description: string;
+  mode: string;
+}
+
 export default function ProviderDashboard() {
   const [user, setUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -31,9 +42,9 @@ export default function ProviderDashboard() {
   const [selectedInstitution, setSelectedInstitution] = useState<any | null>(null)
   const [courses, setCourses] = useState<any[]>([])
   const [showInstitutionForm, setShowInstitutionForm] = useState(false)
-  const [courseData, setCourseData] = useState({
+  const [courseData, setCourseData] = useState<CourseData>({
     course: "",
-    courseTitle: "",
+    course_title: "", // Changed from courseTitle to course_title
     keywords: "",
     duration: "",
     fees: "",
@@ -171,7 +182,7 @@ export default function ProviderDashboard() {
     setEditCourseId(course.id)
     setCourseData({
       course: course.name || "", 
-      courseTitle: course.courseTitle || "", // Make sure to handle course.courseTitle
+      course_title: course.courseTitle || "", // Changed from courseTitle to course_title
       keywords: Array.isArray(course.keywords) ? course.keywords.join(", ") : course.keywords || "",
       duration: String(course.duration || ""), 
       fees: String(course.fee || ""), 
@@ -247,7 +258,7 @@ export default function ProviderDashboard() {
         setMessage("⚠️ Please select an institution first.")
         return
     }
-    if (!courseData.course.trim() || !courseData.keywords.trim() || !courseData.duration || !courseData.fees || !courseData.description.trim() || !courseData.courseTitle.trim()) {
+    if (!courseData.course.trim() || !courseData.keywords.trim() || !courseData.duration || !courseData.fees || !courseData.description.trim() || !courseData.course_title.trim()) {
         setMessage("⚠️ Please fill in all required course fields (Name, Keywords, Duration, Fees, Description, Course Title).");
         return;
     }
@@ -279,7 +290,7 @@ export default function ProviderDashboard() {
       const payload = {
         institute: selectedInstitution.id, 
         name: courseData.course,
-        courseTitle: courseData.courseTitle,
+        course_title: courseData.course_title, // Changed from courseTitle to course_title
         keywords: courseData.keywords
           .split(",")
           .map(k => k.trim()) 
@@ -300,7 +311,7 @@ export default function ProviderDashboard() {
       
       setEditCourseId(null)
       setCourseData({ 
-        course: "", keywords: "", duration: "", fees: "", description: "", courseTitle: "", mode: "Offline",
+        course: "", keywords: "", duration: "", fees: "", description: "", course_title: "", mode: "Offline",
       })
       setShowCourseForm(false)
       fetchCourses(selectedInstitution.id) 
@@ -608,7 +619,7 @@ export default function ProviderDashboard() {
                     </div>
                      <div className="flex items-center gap-2">
                          <button
-                           onClick={() => { setEditCourseId(null); setCourseData({ course: "", keywords: "", duration: "", fees: "", description: "", courseTitle: "", mode: "Offline" }); setShowCourseForm(true); setMessage(""); }}
+                           onClick={() => { setEditCourseId(null); setCourseData({ course: "", keywords: "", duration: "", fees: "", description: "", course_title: "", mode: "Offline" }); setShowCourseForm(true); setMessage(""); }}
                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-medium transition-colors"
                            disabled={isCourseLoading}
                          > <Plus size={14} /> Add </button>
@@ -878,10 +889,14 @@ export default function ProviderDashboard() {
                       <div>
                         <label className="block text-cyan-300 mb-1 font-medium text-xs"> Course Title </label>
                         <input
-                          type="text" name="courseTitle" value={courseData.courseTitle}
-                          onChange={e => setCourseData({ ...courseData, courseTitle: e.target.value })}
+                          type="text"
+                          name="course_title"  // Changed from courseTitle to course_title
+                          value={courseData.course_title}  // Changed from courseTitle to course_title
+                          onChange={e => setCourseData({ ...courseData, course_title: e.target.value })}  // Changed from courseTitle to course_title
                           className="w-full px-3 py-2 rounded-md bg-black/50 border border-gray-600 text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all text-sm"
-                          placeholder="Enter course title" required disabled={isLoading}
+                          placeholder="Enter course title"
+                          required
+                          disabled={isLoading}
                         />
                       </div>
                       <div>
